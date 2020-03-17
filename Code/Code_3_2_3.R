@@ -235,15 +235,11 @@ ggplot(n_kv_LongDF, aes(word, count, fill = word)) +
 
 # gif ---------------------------------------------------------------------
 
+
+# 利用パッケージ
 library(gganimate)
 
 ## トピック分布
-# データフレームを作成
-theta_WideDF <- cbind(
-  as.data.frame(theta_dk), 
-  doc = as.factor(1:M)
-)
-
 # データフレームをlong型に変換
 trace_theta_LongDF <- pivot_longer(
   trace_theta, 
@@ -255,7 +251,7 @@ trace_theta_LongDF <- pivot_longer(
 )
 
 # 作図
-graph_theta <- ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) + 
+graph_theta <- ggplot(trace_theta_LongDF, aes(x = topic, y = prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
   transition_manual(S) + 
@@ -288,6 +284,6 @@ graph_phi <- ggplot(trace_phi_LongDF, aes(x = word, y = prob, fill = word)) +
        subtitle = "S={current_frame}") # ラベル
 
 # 描画
-gganimate(graph_phi, fps = (S + 1) * 2)
+animate(graph_phi, fps = (S + 1) * 2)
 
 
