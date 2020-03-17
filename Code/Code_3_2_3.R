@@ -14,8 +14,8 @@ K <- 4
 
 
 # ハイパーパラメータ
-alpha_k <- rep(2, by = K)
-beta_v  <- rep(2, by = V)
+alpha_k <- rep(2, K)
+beta_v  <- rep(2, V)
 
 
 # トピック分布の初期値
@@ -35,7 +35,7 @@ phi_kv <- phi_kv / apply(phi_kv, 1, sum)
 
 
 # 潜在トピック集合の初期値
-z_dn <- array(0, dim = c(M, V, max(N_dv)))
+z_di <- array(0, dim = c(M, V, max(N_dv)))
 
 # 各文書において各トピックが割り当てられた単語数
 n_dk <- matrix(0, nrow = M, ncol = K)
@@ -69,7 +69,7 @@ for(s in 1:S) {
     
     for(v in 1:V) { # 各語彙
       if(N_dv[d, v] > 0) {
-        for(i in 1:N_dv[d, v]) { # 各単語
+        for(n in 1:N_dv[d, v]) { # 各単語
           
           # サンプリング確率を計算：式(3.29)
           p_z <- phi_kv[, v] * theta_dk[d, ] / sum(phi_kv[, v] * theta_dk[d, ])
@@ -77,7 +77,7 @@ for(s in 1:S) {
         
           # 潜在トピックを割り当て
           res_z <- rmultinom(n = 1, size = 1, prob = p_z)
-          z_dn[d, v, i] <- which(res_z == 1)
+          z_di[d, v, n] <- which(res_z == 1)
         }
       }
     }
@@ -98,8 +98,8 @@ for(s in 1:S) {
     
     
     # カウントを更新
-    n_dk[, k] <- apply(z_dn == k, 1, sum)
-    n_kv[k, ] <- apply(z_dn == k, 2, sum)
+    n_dk[, k] <- apply(z_di == k, 1, sum)
+    n_kv[k, ] <- apply(z_di == k, 2, sum)
     
     
     # 推移の確認用
@@ -119,11 +119,11 @@ for(s in 1:S) {
 }
 
 sum(apply(n_dk, 1, sum) == N_d) == M
-sum(apply(n_kv, 2, sum) == apply(N_dv, 2, sum)) == V
+sum(apply(n_kv, 2, sum) == apply(n_dv, 2, sum)) == V
 apply(phi_kv, 1, sum)
 apply(theta_dk, 1, sum)
 
-z_dn[11, , ]
+z_di[11, , ]
 
 
 # 推定結果の確認 ----------------------------------------------------------------------

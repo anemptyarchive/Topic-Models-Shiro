@@ -23,8 +23,8 @@ stop_words <- "[a-z]"
 # 形態素解析
 mecab_df <- docDF("text_data", type = 1) # テキストファイルの保存先を指定する
 
-# 文書dの語彙vの出現回数(N_dv)の集合
-N_dv <- mecab_df %>% 
+# 文書dの語彙vの出現回数(n_dv)の集合
+n_dv <- mecab_df %>% 
   filter(grepl(PoS_1, POS1)) %>%        # 指定した品詞(大分類)を取り出す
   filter(grepl(PoS_2, POS2)) %>%        # 指定した品詞(細分類)を取り出す
   filter(!grepl(stop_words, TERM)) %>%  # ストップワードを除く
@@ -33,16 +33,16 @@ N_dv <- mecab_df %>%
   t()                                   # 転置
 
 # 確認用の行列名
-dimnames(N_dv) <- list(paste0("d=", 1:nrow(N_dv)), # 行名
-                       paste0("v=", 1:ncol(N_dv))) # 列名
+dimnames(n_dv) <- list(paste0("d=", 1:nrow(n_dv)), # 行名
+                       paste0("v=", 1:ncol(n_dv))) # 列名
 
 # 文書dの単語数(N_d)のベクトル
-N_d <- apply(N_dv, 1, sum) # 行方向に和をとる
+N_d <- apply(n_dv, 1, sum) # 行方向に和をとる
 
 # 文書数
-M <- nrow(N_dv)
+M <- nrow(n_dv)
 
 # 総語彙数
-V <- ncol(N_dv)
+V <- ncol(n_dv)
 
 
