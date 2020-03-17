@@ -45,21 +45,21 @@ n_kv <- matrix(0, nrow = K, ncol = V)
 
 
 # サンプリング回数
-S <- 10
+S <- 1
 
 
 # ギブスサンプリング ----------------------------------------------------------------------
 
-# トレース用
+# 推移の確認用
 trace_theta <- cbind(
   as.data.frame(theta_dk), 
   doc = as.factor(1:M),  # 文書番号
-  S = 0 # イタレーション
+  S = 0 # サンプリング回数
 )
 trace_phi <- cbind(
   as.data.frame(phi_kv), 
   topic = as.factor(1:K),  # トピック番号
-  S = 0 # イタレーション
+  S = 0 # サンプリング回数
 )
 
 
@@ -92,35 +92,34 @@ for(s in 1:S) {
     phi_kv[k, ] <- phi_kv[k, ] ^ (n_kv[k, ] + beta_v - 1) # ()
     
     
-    ## パラメータを正規化
+    # パラメータを正規化
     phi_kv   <- phi_kv / apply(phi_kv, 1, sum)
     theta_dk <- theta_dk / apply(theta_dk, 1, sum)
     
     
-    ## カウントを更新
+    # カウントを更新
     n_dk[, k] <- apply(z_dn == k, 1, sum)
     n_kv[k, ] <- apply(z_dn == k, 2, sum)
     
     
-    # トレース用
+    # 推移の確認用
     tmp_trace_theta <- cbind(
       as.data.frame(theta_dk), 
       doc = as.factor(1:M),  # 文書番号
-      S = s # イタレーション
+      S = s # サンプリング回数
     )
     tmp_trace_phi <- cbind(
       as.data.frame(phi_kv), 
       topic = as.factor(1:K),  # トピック番号
-      S = s # イタレーション
+      S = s # サンプリング回数
     )
     trace_theta <- rbind(trace_theta, tmp_trace_theta)
     trace_phi <- rbind(trace_phi, tmp_trace_phi)
-    
   }
 }
-sum(N_dv)
-sum(n_dk)
-sum(n_kv)
+
+sum(apply(n_dk, 1, sum) == N_d) == M
+sum(apply(n_kv, 2, sum) == apply(N_dv, 2, sum)) == V
 apply(phi_kv, 1, sum)
 apply(theta_dk, 1, sum)
 
@@ -131,7 +130,7 @@ z_dn[11, , ]
 
 
 ## トピック分布
-# データフレームを作成
+# 作図用のデータフレームを作成
 theta_WideDF <- cbind(
   as.data.frame(theta_dk), 
   doc = as.factor(1:M)
@@ -156,13 +155,13 @@ ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) +
 
 
 ## 単語分布
-# 
+# 作図用のデータフレームを作成
 phi_WideDF <- cbind(
   as.data.frame(phi_kv), 
   topic = as.factor(1:K)
 )
 
-# 
+# データフレームをlong型に変換
 phi_LongDF <- pivot_longer(
   phi_WideDF, 
   cols = -topic,        # 変換せずにそのまま残す現列名
@@ -183,13 +182,13 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) +
 
 
 ## n_dk
-# 
+# 作図用のデータフレームを作成
 n_dk_WideDF <- cbind(
   as.data.frame(n_dk), 
   doc = as.factor(1:M)
 )
 
-# 
+# データフレームをlong型に変換
 n_dk_LongDF <- pivot_longer(
   n_dk_WideDF, 
   cols = -doc,        # 変換せずにそのまま残す現列名
@@ -208,13 +207,13 @@ ggplot(n_dk_LongDF, aes(topic, count, fill = topic)) +
 
 
 ## n_kv
-# 
+# 作図用のデータフレームを作成
 n_kv_WideDF <- cbind(
   as.data.frame(n_kv), 
   topic = as.factor(1:K)
 )
 
-# 
+# データフレームをlong型に変換
 n_kv_LongDF <- pivot_longer(
   n_kv_WideDF, 
   cols = -topic,        # 変換せずにそのまま残す現列名
@@ -262,7 +261,34 @@ graph_theta <- ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) +
   facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
   transition_manual(S) + 
   labs(title = "Gibbs sampler for LDA", 
-       subtitle = "S= {current_frame}") # ラベル
+       subtitle = "S={current_frame}") # ラベル
 
 # 描画
 animate(graph_theta, fps = (S + 1) * 2)
+
+
+## 単語分布
+# 作図用のデータフレームを作成
+trace_phi_LongDF <- pivot_longer(
+  trace_phi, 
+  cols = -c(topic, S),        # 変換せずにそのまま残す現列名
+  names_to = "word",    # 現列名を格納する新しい列の名前
+  names_prefix = "V",  # 現列名から取り除く文字列
+  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
+  values_to = "prob"    # 現要素を格納する新しい列の名前
+)
+
+# 作図
+graph_phi <- ggplot(trace_phi_LongDF, aes(x = word, y = prob, fill = word)) + 
+  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
+  facet_wrap( ~ topic, labeller = label_both) +      # グラフの分割
+  scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
+  theme(legend.position = "none") +                  # 凡例
+  transition_manual(S) + 
+  labs(title = "Gibbs sampler for LDA", 
+       subtitle = "S={current_frame}") # ラベル
+
+# 描画
+gganimate(graph_phi, fps = (S + 1) * 2)
+
+
