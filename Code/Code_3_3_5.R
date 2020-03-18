@@ -8,6 +8,10 @@ library(tidyverse)
 # パラメータの設定 ----------------------------------------------------------------
 
 
+# トピック数
+K <- 5
+
+
 # 事前分布のパラメータ
 alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
@@ -19,7 +23,7 @@ theta_dk <- seq(0, 1, by = 0.01) %>%
             matrix(nrow = M, ncol = K)
 # 正規化
 theta_dk <- theta_dk / apply(theta_dk, 1, sum)
-
+theta_dk <- matrix(rep(1 / K, M * K), nrow = M, ncol = K)
 
 # 単語分布の初期値
 phi_kv <- seq(0, 1, by = 0.01) %>% 
@@ -30,15 +34,13 @@ phi_kv <- phi_kv / apply(phi_kv, 1, sum)
 
 
 # トピック集合
-z_dv <- array(0, dim = c(M, V, K))
+z_dv <- array(1 / prod(M, V, K), dim = c(M, V, K))
 
 # 期待値
-tmp_z <- array(0, c(M, V, K))
-for(k in 1:K) {
-  tmp_z[, , k] <- z_dv[, , k] * n_dv
-}
-n_dk <- apply(tmp_z, c(1, 3), sum)
-n_kv <- apply(tmp_z, c(3, 2), sum)
+n_dk <- apply(z_dv, c(1, 3), sum)
+
+tmp_z_k <- apply(z_dv, 3, sum)
+n_kv <- matrix(rep(tmp_z_k, V), K, V) * matrix(rep(n_v, each = K), K, V)
 
 
 # 事後分布パラメータの初期値(=事前分布のパラメータ)
@@ -81,12 +83,10 @@ for(I in 1:Iter) { # 試行回数
     }
     
     # 期待値
-    tmp_z <- array(0, c(M, V, K))
-    for(k in 1:K) {
-      tmp_z[, , k] <- z_dv[, , k] * n_dv
-    }
-    n_dk <- apply(tmp_z, c(1, 3), sum)
-    n_kv <- apply(tmp_z, c(3, 2), sum)
+    n_dk <- apply(z_dv, c(1, 3), sum)
+    
+    tmp_z_k <- apply(z_dv, 3, sum)
+    n_kv <- matrix(rep(tmp_z_k, V), K, V) * matrix(rep(n_v, each = K), K, V)
     
     
     # 事後分布のパラメータ:式(3.89)
@@ -180,59 +180,6 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) +
   theme(legend.position = "none") +                  # 凡例
   labs(title = "Variational Bayes for LDA (1)", 
        subtitle = expression(Phi)) # ラベル
-
-
-## n_dk
-# 作図用のデータフレームを作成
-n_dk_WideDF <- cbind(
-  as.data.frame(n_dk), 
-  doc = as.factor(1:M)
-)
-
-# データフレームをlong型に変換
-n_dk_LongDF <- pivot_longer(
-  n_dk_WideDF, 
-  cols = -doc,        # 変換せずにそのまま残す現列名
-  names_to = "topic",    # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
-  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
-  values_to = "count"    # 現要素を格納する新しい列の名前
-)
-
-# 作図
-ggplot(n_dk_LongDF, aes(topic, count, fill = topic)) + 
-  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  facet_wrap(~ doc, labeller = label_both) + # 画面の分割
-  labs(title = "Gibbs sampler for LDA", 
-       subtitle = expression(n[dk])) # ラベル
-
-
-## n_kv
-# 作図用のデータフレームを作成
-n_kv_WideDF <- cbind(
-  as.data.frame(n_kv), 
-  topic = as.factor(1:K)
-)
-
-# データフレームをlong型に変換
-n_kv_LongDF <- pivot_longer(
-  n_kv_WideDF, 
-  cols = -topic,        # 変換せずにそのまま残す現列名
-  names_to = "word",    # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
-  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
-  values_to = "count"    # 現要素を格納する新しい列の名前
-)
-
-# 作図
-ggplot(n_kv_LongDF, aes(word, count, fill = word)) + 
-  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  facet_wrap(~ topic, labeller = label_both) + # 画面の分割
-  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
-  theme(legend.position = "none") + # 凡例
-  labs(title = "Gibbs sampler for LDA", 
-       subtitle = expression(n[kv])) # ラベル
-
 
 
 # gif ---------------------------------------------------------------------

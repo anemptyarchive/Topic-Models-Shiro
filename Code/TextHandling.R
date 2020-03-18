@@ -37,7 +37,11 @@ dimnames(n_dv) <- list(paste0("d=", 1:nrow(n_dv)), # 行名
                        paste0("v=", 1:ncol(n_dv))) # 列名
 
 # 文書dの単語数(N_d)のベクトル
-N_d <- apply(n_dv, 1, sum) # 行方向に和をとる
+n_d <- apply(n_dv, 1, sum) # 行方向に和をとる
+
+# 語彙vの単語数のベクトル
+n_v <- apply(n_dv, 2, sum) # 列方向に和をとる
+
 
 # 文書数
 M <- nrow(n_dv)

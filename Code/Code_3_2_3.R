@@ -117,7 +117,7 @@ for(s in 1:S) {
   trace_phi <- rbind(trace_phi, tmp_trace_phi)
 }
 
-sum(apply(n_dk, 1, sum) == N_d) == M
+sum(apply(n_dk, 1, sum) == n_d) == M
 sum(apply(n_kv, 2, sum) == apply(n_dv, 2, sum)) == V
 apply(phi_kv, 1, sum)
 apply(theta_dk, 1, sum)
