@@ -99,13 +99,13 @@ z_LongDF <- pivot_longer(
 z_LongDF %>% 
   filter(doc %in% 1:5) %>% 
   filter(word %in% 1:5) %>% 
-ggplot(aes(x = topic, y = prob, fill = topic)) + 
-  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  facet_wrap(doc ~ word, labeller = label_both) + # グラフの分割
+  ggplot(aes(x = topic, y = prob, fill = topic)) + 
+    geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+    facet_wrap(doc ~ word, labeller = label_both) + # グラフの分割
 #  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
-  theme(legend.position = "none") + # 凡例
-  labs(title = "Collapsed Variational Bayes Method for LDA", 
-       subtitle = expression(z[dn])) # ラベル
+    theme(legend.position = "none") + # 凡例
+    labs(title = "Collapsed Variational Bayes Method for LDA", 
+         subtitle = expression(z[dn])) # ラベル
 
 
 

@@ -10,7 +10,7 @@ library(tidyverse)
 
 
 # トピック数
-K <- 4
+K <- 5
 
 
 # ハイパーパラメータ
@@ -45,7 +45,7 @@ n_kv <- matrix(0, nrow = K, ncol = V)
 
 
 # サンプリング回数
-S <- 1
+S <- 10
 
 
 # ギブスサンプリング ----------------------------------------------------------------------
@@ -239,6 +239,7 @@ ggplot(n_kv_LongDF, aes(word, count, fill = word)) +
 # 利用パッケージ
 library(gganimate)
 
+
 ## トピック分布
 # データフレームをlong型に変換
 trace_theta_LongDF <- pivot_longer(
@@ -260,6 +261,8 @@ graph_theta <- ggplot(trace_theta_LongDF, aes(x = topic, y = prob, fill = topic)
 
 # 描画
 animate(graph_theta, fps = (S + 1) * 2)
+
+
 
 
 ## 単語分布
