@@ -33,8 +33,8 @@ n_dv <- mecab_df %>%
   t()                                   # 転置
 
 # 確認用の行列名
-dimnames(n_dv) <- list(paste0("d=", 1:nrow(n_dv)), # 行名
-                       paste0("v=", 1:ncol(n_dv))) # 列名
+#dimnames(n_dv) <- list(paste0("d=", 1:nrow(n_dv)), # 行名
+#                       paste0("v=", 1:ncol(n_dv))) # 列名
 
 # 文書dの単語数(N_d)のベクトル
 n_d <- apply(n_dv, 1, sum) # 行方向に和をとる

@@ -23,7 +23,7 @@ theta_dk <- seq(0, 1, by = 0.01) %>%
             matrix(nrow = M, ncol = K)
 # 正規化
 theta_dk <- theta_dk / apply(theta_dk, 1, sum)
-theta_dk <- matrix(rep(1 / K, M * K), nrow = M, ncol = K)
+theta_dk <- matrix(1 / K, nrow = M, ncol = K)
 
 # 単語分布の初期値
 phi_kv <- seq(0, 1, by = 0.01) %>% 
@@ -31,16 +31,22 @@ phi_kv <- seq(0, 1, by = 0.01) %>%
           matrix(nrow = K, ncol = V)
 # 正規化
 phi_kv <- phi_kv / apply(phi_kv, 1, sum)
+phi_kv <- matrix(1 / V, nrow = K, ncol = V)
 
 
 # トピック集合
-z_dv <- array(1 / prod(M, V, K), dim = c(M, V, K))
+z_dvk <- array(1 / K, dim = c(M, V, K))
 
 # 期待値
-n_dk <- apply(z_dv, c(1, 3), sum)
-
-tmp_z_k <- apply(z_dv, 3, sum)
-n_kv <- matrix(rep(tmp_z_k, V), K, V) * matrix(rep(n_v, each = K), K, V)
+tmp_z <- array(0, dim = c(M, V, K))
+for(k in 1:K) {
+  tmp_z[, , k] <- z_dvk[, , k] * n_dv
+}
+n_dk <- apply(z_dvk, c(1, 3), sum)
+n_kv <- apply(tmp_z, c(3, 2), sum)
+sum(n_dv)
+sum(n_dk)
+sum(n_kv)
 
 
 # 事後分布パラメータの初期値(=事前分布のパラメータ)
@@ -77,16 +83,17 @@ for(I in 1:Iter) { # 試行回数
           # 潜在トピック集合の事後分布:式(3.99)
           term1 <- digamma(eta_kv[, v]) - digamma(apply(eta_kv, 1, sum))
           term2 <- digamma(eta_dk[d, ]) - digamma(apply(eta_dk, 2, sum))
-          z_dv[d, v, ] <- exp(term1) * exp(term2)
+          z_dvk[d, v, ] <- exp(term1) * exp(term2)
         }
       }
     }
     
     # 期待値
-    n_dk <- apply(z_dv, c(1, 3), sum)
-    
-    tmp_z_k <- apply(z_dv, 3, sum)
-    n_kv <- matrix(rep(tmp_z_k, V), K, V) * matrix(rep(n_v, each = K), K, V)
+    for(k in 1:K) {
+      tmp_z[, , k] <- z_dvk[, , k] * n_dv
+    }
+    n_dk <- apply(z_dvk, c(1, 3), sum)
+    n_kv <- apply(tmp_z, c(3, 2), sum)
     
     
     # 事後分布のパラメータ:式(3.89)
