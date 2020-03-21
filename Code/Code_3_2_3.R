@@ -12,7 +12,7 @@ M <- 10
 V <- 20
 # 文書ごとの各語彙数
 n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
-n_d <- apply(n_dv, 1, sum)
+
 
 # パラメータの設定 -----------------------------------------------------------------
 
@@ -33,8 +33,6 @@ theta_dk <- seq(0, 1, by = 0.01) %>%
 # 正規化
 theta_dk <- theta_dk / apply(theta_dk, 1, sum)
 
-theta_dk <- matrix(1 / K, nrow = M, ncol = K)
-
 
 # 単語分布の初期値
 phi_kv <- seq(0, 1, by = 0.01) %>% 
@@ -42,8 +40,6 @@ phi_kv <- seq(0, 1, by = 0.01) %>%
           matrix(nrow = K, ncol = V)
 # 正規化
 phi_kv <- phi_kv / apply(phi_kv, 1, sum)
-
-phi_kv <- matrix(1 / V, nrow = K, ncol = V)
 
 
 # 潜在トピック集合の初期値
@@ -97,10 +93,10 @@ for(s in 1:S) { ## (イタレーション)
     } ## (/各語彙)
     
     # 事後分布のパラメータを更新
-    alpha_k <- n_dk[d, ] + alpha_k
+    new_alpha_k <- n_dk[d, ] + alpha_k
     
     # トピック分布を更新：式(3.31)
-    theta_dk[d, ] <- MCMCpack::rdirichlet(1, alpha = alpha_k - 1) %>% 
+    theta_dk[d, ] <- MCMCpack::rdirichlet(1, alpha = new_alpha_k - 1) %>% 
       as.vector()
     
   } ## (/各文書)
@@ -108,10 +104,10 @@ for(s in 1:S) { ## (イタレーション)
   for(k in 1:K) { ## (各トピック)
     
     # 事後分布のパラメータを更新
-    beta_v <- n_kv[k, ] + beta_v
+    new_beta_v <- n_kv[k, ] + beta_v
     
     # 単語分布を更新：式(3.34)
-    phi_kv[k, ] <- MCMCpack::rdirichlet(1, alpha = beta_v - 1) %>% 
+    phi_kv[k, ] <- MCMCpack::rdirichlet(1, alpha = new_beta_v - 1) %>% 
       as.vector()
     
     
@@ -137,6 +133,7 @@ for(s in 1:S) { ## (イタレーション)
     topic = as.factor(1:K),  # トピック番号
     S = s # 試行回数
   )
+  
   # データフレームを結合
   trace_theta <- rbind(trace_theta, tmp_trace_theta)
   trace_phi <- rbind(trace_phi, tmp_trace_phi)
@@ -145,7 +142,7 @@ for(s in 1:S) { ## (イタレーション)
 # 処理の検証
 sum(apply(n_dk, 1, sum) == apply(n_dv, 1, sum)) == M
 sum(apply(n_kv, 2, sum) == apply(n_dv, 2, sum)) == V
-apply(phi_kv, 1, sum) == rep(1, K)
+apply(phi_kv, 1, sum)
 apply(theta_dk, 1, sum)
 
 
@@ -204,7 +201,7 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) +
        subtitle = expression(Phi)) # ラベル
 
 
-# gif ---------------------------------------------------------------------
+# 推移の確認用gif ---------------------------------------------------------------------
 
 
 # 利用パッケージ
@@ -231,7 +228,7 @@ graph_theta <- ggplot(trace_theta_LongDF, aes(x = topic, y = prob, fill = topic)
        subtitle = "S={current_frame}") # ラベル
 
 # 描画
-animate(graph_theta, fps = (S + 1) * 2)
+animate(graph_theta)
 
 
 ## 単語分布
@@ -256,12 +253,27 @@ graph_phi <- ggplot(trace_phi_LongDF, aes(x = word, y = prob, fill = word)) +
        subtitle = "S={current_frame}") # ラベル
 
 # 描画
-animate(graph_phi, fps = (S + 1) * 2)
-
+animate(graph_phi)
 
 
 # try ---------------------------------------------------------------------
 
+df <- tibble()
+N <- 3000
+for(n in 1:N) {
+  tmp_df <- tibble(
+    x = sample(1:10, 10, replace = TRUE), 
+    y = sample(1:10, 10, replace = TRUE), 
+    N = as.numeric(n)
+  )
+  df <- rbind(df, tmp_df)
+}
+df$N <- as.numeric(df$N)
+graph <- ggplot(df, aes(x, y)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  transition_manual(N) + 
+  labs(title = "N={current_frame}")
+animate(graph, duration = N / 10)
 
 ## n_dk
 # 作図用のデータフレームを作成
