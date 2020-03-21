@@ -5,7 +5,15 @@
 # 利用パッケージ
 library(tidyverse)
 
+## 動作検証用
+# 文書数
+M <- 10
+# 語彙数
+V <- 20
+# 文書ごとの各語彙数
 n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
+n_d <- apply(n_dv, 1, sum)
+
 # パラメータの設定 -----------------------------------------------------------------
 
 
@@ -54,8 +62,6 @@ S <- 1000
 
 # ギブスサンプリング ----------------------------------------------------------------------
 
-new_theta_dk <- matrix(0, M, K)
-new_phi_kv <- matrix(0, K, V)
 
 # 推移の確認用データフレームを作成
 trace_theta <- cbind(
@@ -68,7 +74,7 @@ trace_phi <- cbind(
   topic = as.factor(1:K),  # トピック番号
   S = 0 # サンプリング回数
 )
-d <- v <- n <- 1
+
 # 推定
 for(s in 1:S) { ## (イタレーション)
   
@@ -90,31 +96,35 @@ for(s in 1:S) { ## (イタレーション)
       }
     } ## (/各語彙)
     
+    # 事後分布のパラメータを更新
+    alpha_k <- n_dk[d, ] + alpha_k
+    
     # トピック分布を更新：式(3.31)
-    new_theta_dk[d, ] <- MCMCpack::rdirichlet(1, alpha = n_dk[d, ] + alpha_k - 1) %>% 
-      as.vector()#theta_dk[d, ] ^ (n_dk[d, ] + alpha_k - 1)
+    theta_dk[d, ] <- MCMCpack::rdirichlet(1, alpha = alpha_k - 1) %>% 
+      as.vector()
     
   } ## (/各文書)
   
   for(k in 1:K) { ## (各トピック)
     
+    # 事後分布のパラメータを更新
+    beta_v <- n_kv[k, ] + beta_v
+    
     # 単語分布を更新：式(3.34)
-    new_phi_kv[k, ] <- MCMCpack::rdirichlet(1, alpha = n_kv[k, ] + beta_v - 1) %>% 
-      as.vector()#prod(phi_kv[k, ] ^ (n_kv[k, ] + beta_v - 1))
+    phi_kv[k, ] <- MCMCpack::rdirichlet(1, alpha = beta_v - 1) %>% 
+      as.vector()
     
     
     # カウントを更新
-    new_n_dk[, k] <- apply(z_di == k, 1, sum)
-    new_n_kv[k, ] <- apply(z_di == k, 2, sum)
+    n_dk[, k] <- apply(z_di == k, 1, sum)
+    n_kv[k, ] <- apply(z_di == k, 2, sum)
     
   } ## (/各トピック)
   
   # パラメータを正規化
-  phi_kv   <- new_phi_kv / apply(new_phi_kv, 1, sum)
-  theta_dk <- new_theta_dk / apply(new_theta_dk, 1, sum)
+  phi_kv   <- phi_kv / apply(phi_kv, 1, sum)
+  theta_dk <- theta_dk / apply(theta_dk, 1, sum)
   
-  n_dk <- new_n_dk
-  n_kv <- new_n_kv
   
   # 推移の確認用データフレームを作成
   tmp_trace_theta <- cbind(
@@ -133,12 +143,10 @@ for(s in 1:S) { ## (イタレーション)
 }
 
 # 処理の検証
-sum(apply(n_dk, 1, sum) == n_d) == M
+sum(apply(n_dk, 1, sum) == apply(n_dv, 1, sum)) == M
 sum(apply(n_kv, 2, sum) == apply(n_dv, 2, sum)) == V
-apply(phi_kv, 1, sum)
+apply(phi_kv, 1, sum) == rep(1, K)
 apply(theta_dk, 1, sum)
-
-df <- z_di[1, , ]
 
 
 # 推定結果の確認 ----------------------------------------------------------------------
@@ -163,8 +171,8 @@ theta_LongDF <- pivot_longer(
 
 # 作図
 ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) + 
-  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  facet_wrap( ~ doc, labeller = label_both) + # グラフの分割
   labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(Theta)) # ラベル
 
@@ -188,10 +196,10 @@ phi_LongDF <- pivot_longer(
 
 # 作図
 ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) + 
-  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  facet_wrap( ~ topic, labeller = label_both) +      # グラフの分割
-  scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
-  theme(legend.position = "none") +                  # 凡例
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  facet_wrap( ~ topic, labeller = label_both) + # グラフの分割
+  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
+  theme(legend.position = "none") + # 凡例
   labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(Phi)) # ラベル
 
@@ -253,7 +261,6 @@ animate(graph_phi, fps = (S + 1) * 2)
 
 
 # try ---------------------------------------------------------------------
-
 
 
 ## n_dk
