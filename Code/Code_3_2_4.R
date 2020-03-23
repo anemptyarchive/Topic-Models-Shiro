@@ -15,21 +15,17 @@ n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
 
 # パラメータの設定 -----------------------------------------------------------------
 
-
 # サンプリング回数(試行回数)
 S <- 1000
-
 
 # トピック数
 K <- 5
 
-
-# ハイパーパラメータ:(1以上の値)
+# 事前分布のパラメータ:(1以上の値)
 alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
-
-# 潜在トピック集合の初期値
+# 潜在トピック集合の初期値:(0固定)
 z_di <- array(0, dim = c(M, V, max(n_dv)))
 
 # 各文書において各トピックが割り当てられた単語数
@@ -40,7 +36,6 @@ n_kv <- matrix(0, nrow = K, ncol = V)
 
 
 # ギブスサンプリング ----------------------------------------------------------------------
-
 
 # 推移の確認用データフレームを作成
 trace_alpha <- tibble(
@@ -66,25 +61,24 @@ for(s in 1:S) { ## (イタレーション)
           # トピック番号を取り出す
           k <- z_di[d, v, n]
           
-          # d,i要素のみのカウント
-          count_kv <- matrix(0, nrow = K, ncol = V)
+          # d,i要素のみのカウントを用意
           count_dk <- matrix(0, nrow = M, ncol = K)
-          count_kv[k, v] <- 1
+          count_kv <- matrix(0, nrow = K, ncol = V)
           count_dk[d, k] <- 1
+          count_kv[k, v] <- 1
           
           # d,i要素を除いたカウント
-          n_kv.di <- n_kv - count_kv
           n_dk.di <- n_dk - count_dk
-          
+          n_kv.di <- n_kv - count_kv
           
           # サンプリング確率を計算:式(3.38)
           term1 <- (n_kv.di[, v] + beta_v[v]) / apply(t(n_kv.di) + beta_v, 2, sum)
           term2 <- (n_dk.di[d, ] + alpha_k) / sum(n_dk.di[d, ] + alpha_k)
-          p_z <- term1 * term2
-          p_z[is.na(p_z)] <- 1 / K # (アンダーフロー対策(仮))
+          q_z <- term1 * term2
+          q_z[is.na(q_z)] <- 1 / K # (アンダーフロー対策(仮))
           
           # 潜在トピックを割り当て
-          res_z <- rmultinom(n = 1, size = 1, prob = p_z)
+          res_z <- rmultinom(n = 1, size = 1, prob = q_z)
           z_di[d, v, n] <- which(res_z == 1)
           
         } ## (/各単語)
@@ -92,12 +86,11 @@ for(s in 1:S) { ## (イタレーション)
     } ## (/各語彙)
   } ## (/各文書)
   
-  # カウント(期待値)を更新
+  # カウントを更新
   for(k in 1:K) {
-    n_kv[k, ] <- apply(z_di == k, 2, sum)
     n_dk[, k] <- apply(z_di == k, 1, sum)
+    n_kv[k, ] <- apply(z_di == k, 2, sum)
   }
-  
   
   # 事後分布のパラメータを更新:式(3.191)
   alpha_numer <- apply(digamma(t(n_dk) + alpha_k) - digamma(alpha_k), 1, sum)
@@ -108,7 +101,6 @@ for(s in 1:S) { ## (イタレーション)
   beta_numer <- apply(digamma(t(n_kv) + beta_v) - digamma(beta_v), 1, sum)
   beta_denom <- sum(digamma(apply(t(n_kv) + beta_v, 2, sum)) - digamma(sum(beta_v)))
   beta_v <- beta_v * beta_numer / beta_denom
-  
   
   # 推移の確認用データフレームを作成
   tmp_trace_alpha <- tibble(
@@ -122,7 +114,7 @@ for(s in 1:S) { ## (イタレーション)
     S = s # 試行回数
   )
   
-  # 
+  # データフレームを結合
   trace_alpha <- rbind(trace_alpha, tmp_trace_alpha)
   trace_beta  <- rbind(trace_beta, tmp_trace_beta)
 }
@@ -135,9 +127,8 @@ sum(n_dk) == sum(n_kv)
 
 # 推定結果の確認 -----------------------------------------------------------------
 
-
 ## トピック分布(期待値)
-# thetaの期待値を計算
+# thetaの期待値を計算:式(2.10)
 theta_k <- alpha_k / sum(alpha_k)
 
 # 作図用のデータフレームを作成
@@ -154,7 +145,7 @@ ggplot(theta_df, aes(x = topic, y = prob, fill = topic)) +
 
 
 ## 単語分布(期待値)
-# phiの期待値を計算
+# phiの期待値を計算:式(2.10)
 phi_v <- beta_v / sum(beta_v)
 
 # 作図用のデータフレームを作成
@@ -173,7 +164,6 @@ ggplot(phi_df, aes(x = word, y = prob, fill = word)) +
 
 
 # 推移の確認用gif ---------------------------------------------------------------------
-
 
 # 利用パッケージ
 library(gganimate)
