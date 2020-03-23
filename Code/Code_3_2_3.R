@@ -81,11 +81,11 @@ for(s in 1:S) { ## (イタレーション)
         for(n in 1:n_dv[d, v]) { ## (各単語)
           
           # サンプリング確率を計算：式(3.29)
-          p_z <- phi_kv[, v] * theta_dk[d, ] / sum(phi_kv[, v] * theta_dk[d, ])
-          p_z[is.na(p_z)] <- 1 / K # (アンダーフロー対策(仮))
+          q_z <- phi_kv[, v] * theta_dk[d, ] / sum(phi_kv[, v] * theta_dk[d, ])
+          q_z[is.na(q_z)] <- 1 / K # (アンダーフロー対策(仮))
         
           # 潜在トピックを割り当て
-          res_z <- rmultinom(n = 1, size = 1, prob = p_z)
+          res_z <- rmultinom(n = 1, size = 1, prob = q_z)
           z_di[d, v, n] <- which(res_z == 1)
           
         } ## (/各単語)
