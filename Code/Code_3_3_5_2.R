@@ -139,3 +139,118 @@ for(OI in 1:OutIter) { ##
 }
 
 
+# 推定結果の確認 ----------------------------------------------------------------------
+
+
+## トピック分布(期待値)
+# thetaの期待値を計算:式(2.10)
+theta_dk <- eta_dk / apply(eta_dk, 1, sum)
+
+# 作図用のデータフレームを作成
+theta_WideDF <- cbind(
+  as.data.frame(theta_dk), 
+  doc = as.factor(1:M) # 文書番号
+)
+
+# データフレームをlong型に変換
+theta_LongDF <- pivot_longer(
+  theta_WideDF, 
+  cols = -doc,         # 変換せずにそのまま残す現列名
+  names_to = "topic",  # 現列名を格納する新しい列の名前
+  names_prefix = "V",  # 現列名から取り除く文字列
+  names_ptypes = list(topic = factor()),  # 現列名を要素とする際の型
+  values_to = "prob"   # 現要素を格納する新しい列の名前
+)
+
+# 作図
+ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) + 
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  facet_wrap( ~ doc, labeller = label_both) + # グラフの分割
+  labs(title = "Variational Bayes for LDA (1)", 
+       subtitle = expression(Theta)) # ラベル
+
+
+## 単語分布(期待値)
+# phiの期待値を計算:式(2.10)
+phi_kv <- eta_kv / apply(eta_kv, 1, sum)
+
+# 作図用のデータフレームを作成
+phi_WideDF <- cbind(
+  as.data.frame(phi_kv), 
+  topic = as.factor(1:K) # トピック番号
+)
+
+# データフレームをlong型に変換
+phi_LongDF <- pivot_longer(
+  phi_WideDF, 
+  cols = -topic,       # 変換せずにそのまま残す現列名
+  names_to = "word",   # 現列名を格納する新しい列の名前
+  names_prefix = "V",  # 現列名から取り除く文字列
+  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
+  values_to = "prob"   # 現要素を格納する新しい列の名前
+)
+
+# 作図
+ggplot(phi_LongDF, aes(x = word, y = prob, fill = word, color = word)) + 
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  facet_wrap( ~ topic, labeller = label_both) + # グラフの分割
+  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
+  theme(legend.position = "none") + # 凡例
+  labs(title = "Variational Bayes for LDA (1)", 
+       subtitle = expression(Phi)) # ラベル
+
+
+# 推移の確認用gif ---------------------------------------------------------------------
+
+# 利用パッケージ
+library(gganimate)
+
+
+## トピック分布
+# データフレームをlong型に変換
+trace_eta_theta_LongDF <- pivot_longer(
+  trace_eta_theta, 
+  cols = -c(doc, Iter),          # 変換せずにそのまま残す現列名
+  names_to = "topic",   # 現列名を格納する新しい列の名前
+  names_prefix = "V",  # 現列名から取り除く文字列
+  names_ptypes = list(topic = factor()),  # 現列名を要素とする際の型
+  values_to = "value"    # 現要素を格納する新しい列の名前
+)
+
+# 作図
+graph_eta_theta <- ggplot(trace_eta_theta_LongDF, aes(x = topic, y = value, fill = topic)) + 
+  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
+  facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
+  transition_manual(Iter) + 
+  labs(title = "Variational Bayes for LDA (1):Eta^theta_dk", 
+       subtitle = "Iter={current_frame}") # ラベル
+
+# 描画
+animate(graph_eta_theta, nframes = (Iter + 1), fps = 10)
+
+
+## 単語分布
+# 作図用のデータフレームを作成
+trace_eta_phi_LongDF <- pivot_longer(
+  trace_eta_phi, 
+  cols = -c(topic, Iter),        # 変換せずにそのまま残す現列名
+  names_to = "word",    # 現列名を格納する新しい列の名前
+  names_prefix = "V",  # 現列名から取り除く文字列
+  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
+  values_to = "value"    # 現要素を格納する新しい列の名前
+)
+
+# 作図
+graph_eta_phi <- ggplot(trace_eta_phi_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
+  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
+  facet_wrap( ~ topic, labeller = label_both) +      # グラフの分割
+  scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
+  theme(legend.position = "none") +                  # 凡例
+  transition_manual(Iter) + 
+  labs(title = "Variational Bayes for LDA (1):Eta^phi_kv", 
+       subtitle = "Iter={current_frame}") # ラベル
+
+# 描画
+animate(graph_eta_phi, nframes = (Iter + 1), fps = 10)
+
+
