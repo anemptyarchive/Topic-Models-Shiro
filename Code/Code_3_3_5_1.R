@@ -15,37 +15,14 @@ n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
 
 # パラメータの設定 ----------------------------------------------------------------
 
-
 # トピック数
 K <- 5
-
 
 # 事前分布のパラメータ
 alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
-
-# トピック分布の初期値
-theta_dk <- seq(0, 1, by = 0.01) %>% 
-            sample(size = M * K, replace = TRUE) %>% 
-            matrix(nrow = M, ncol = K)
-# 正規化
-theta_dk <- theta_dk / apply(theta_dk, 1, sum)
-
-#theta_dk <- matrix(1 / K, nrow = M, ncol = K)
-
-
-# 単語分布の初期値
-phi_kv <- seq(0, 1, by = 0.01) %>% 
-          sample(size = K * V, replace = TRUE) %>% 
-          matrix(nrow = K, ncol = V)
-# 正規化
-phi_kv <- phi_kv / apply(phi_kv, 1, sum)
-
-#phi_kv <- matrix(1 / V, nrow = K, ncol = V)
-
-
-# トピック集合の初期値
+# 潜在トピック集合の分布
 z_dvk <- array(0, dim = c(M, V, K))
 for(d in 1:M) {
   for(v in 1:V) {
@@ -66,9 +43,10 @@ n_dk <- apply(tmp_z, c(1, 3), sum)
 
 # 全文書において各トピックが割り当てられた単語数
 n_kv <- apply(tmp_z, c(3, 2), sum)
-sum(n_dv)
-sum(n_dk)
-sum(n_kv)
+
+# 処理の検証用
+sum(n_dk) == sum(n_dv)
+sum(n_kv) == sum(n_dv)
 
 
 # 事後分布パラメータの初期値(=事前分布のパラメータ)
@@ -77,7 +55,7 @@ eta_kv <- t(t(n_kv) + beta_v)
 
 
 # イタレーション数
-Iter <- 10
+Iter <- 50
 
 
 # 変分ベイズ -------------------------------------------------------------------
@@ -162,7 +140,6 @@ for(I in 1:Iter) { ## (試行回数)
 
 
 
-
 # 推定結果の確認 ----------------------------------------------------------------------
 
 
@@ -224,8 +201,7 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) +
        subtitle = expression(Phi)) # ラベル
 
 
-# gif ---------------------------------------------------------------------
-
+# 推移の確認用gif ---------------------------------------------------------------------
 
 # 利用パッケージ
 library(gganimate)
@@ -251,7 +227,7 @@ graph_eta_theta <- ggplot(trace_eta_theta_LongDF, aes(x = topic, y = value, fill
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_eta_theta, fps = (Iter + 1) * 2)
+animate(graph_eta_theta, nframes = (Iter + 1), fps = 10)
 
 
 ## 単語分布
@@ -276,9 +252,6 @@ graph_eta_phi <- ggplot(trace_eta_phi_LongDF, aes(x = word, y = value, fill = wo
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_eta_phi, fps = (Iter + 1) * 2)
-
-
-
+animate(graph_eta_phi, nframes = (Iter + 1), fps = 10)
 
 
