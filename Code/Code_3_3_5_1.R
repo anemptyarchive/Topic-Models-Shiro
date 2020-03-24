@@ -101,25 +101,15 @@ for(I in 1:Iter) { ## (試行回数)
     
     # 事後分布のパラメータを計算:式(3.89)
     eta_dk[d, ] <- n_dk[d, ] + alpha_k
-
-    # トピック分布の事後分布を計算:式(3.90)
-    #theta_dk[d, ] <- theta_dk[d, ] ^ (eta_dk[d, ] - 1)
     
-    for(k in 1:K) { ## (各トピック)
-      
-      # 事後分布のパラメータ:式(3.95)
-      eta_kv[k, ] <- n_kv[k, ] + beta_v
-      
-      # 単語分布の事後分布を計算:式(3.96)
-      #phi_kv[k, ] <- phi_kv[k, ] ^ (eta_kv[k, ] - 1)
-      
-    } ## (/各トピック)
   } ## (/各文書)
   
-  # パラメータを正規化
-  #theta_dk <- theta_dk / apply(theta_dk, 1, sum)
-  #phi_kv   <- phi_kv / apply(phi_kv, 1, sum)
-  
+  for(k in 1:K) { ## (各トピック)
+    
+    # 事後分布のパラメータ:式(3.95)
+    eta_kv[k, ] <- n_kv[k, ] + beta_v
+    
+  } ## (/各トピック)
   
   # 推移の確認用のデータフレームを作成
   tmp_trace_eta_theta <- cbind(
@@ -137,7 +127,6 @@ for(I in 1:Iter) { ## (試行回数)
   trace_eta_theta <- rbind(trace_eta_theta, tmp_trace_eta_theta)
   trace_eta_phi   <- rbind(trace_eta_phi, tmp_trace_eta_phi)
 }
-
 
 
 # 推定結果の確認 ----------------------------------------------------------------------
@@ -192,7 +181,7 @@ phi_LongDF <- pivot_longer(
 )
 
 # 作図
-ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) + 
+ggplot(phi_LongDF, aes(x = word, y = prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap( ~ topic, labeller = label_both) + # グラフの分割
   scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
@@ -242,7 +231,7 @@ trace_eta_phi_LongDF <- pivot_longer(
 )
 
 # 作図
-graph_eta_phi <- ggplot(trace_eta_phi_LongDF, aes(x = word, y = value, fill = word)) + 
+graph_eta_phi <- ggplot(trace_eta_phi_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ topic, labeller = label_both) +      # グラフの分割
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
