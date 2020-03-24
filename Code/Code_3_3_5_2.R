@@ -4,12 +4,21 @@
 # 利用パッケージ
 library(tidyverse)
 
+## 動作検証用
+# 文書数
+M <- 10
+# 語彙数
+V <- 20
+# 文書ごとの各語彙数
+n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
+n_d <- apply(n_dv, 1, sum)
+
 
 # パラメータの設定 ----------------------------------------------------------------
 
 # イタレーション数
-OutIter <- 5
-InIter  <- 5
+OutIter <- 50
+InIter  <- 10
 Abs_Err <- 0.1
 
 # トピック数
@@ -52,7 +61,6 @@ eta_dk <- t(t(n_dk) + alpha_k)
 eta_kv <- t(t(n_kv) + beta_v)
 
 
-
 # 変分ベイズ -------------------------------------------------------------------
 
 # 推移の確認用のデータフレームを作成
@@ -67,7 +75,7 @@ trace_eta_phi <- cbind(
   Iter = 0 # 試行回数
 )
 
-for(OI in 1:OutIter) { ## 
+for(OI in 1:OutIter) { ## イタレーション
   
   for(d in 1:M) { ## (各文書)
     
@@ -125,12 +133,12 @@ for(OI in 1:OutIter) { ##
   tmp_trace_eta_theta <- cbind(
     as.data.frame(eta_dk), 
     doc = as.factor(1:M),  # 文書番号
-    Iter = I # 試行回数
+    Iter = OI # 試行回数
   )
   tmp_trace_eta_phi <- cbind(
     as.data.frame(eta_kv), 
     topic = as.factor(1:K),  # トピック番号
-    Iter = I # 試行回数
+    Iter = OI # 試行回数
   )
   
   # データフレームを結合
@@ -226,7 +234,7 @@ graph_eta_theta <- ggplot(trace_eta_theta_LongDF, aes(x = topic, y = value, fill
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_eta_theta, nframes = (Iter + 1), fps = 10)
+animate(graph_eta_theta, nframes = (OutIter + 1), fps = 10)
 
 
 ## 単語分布
@@ -251,6 +259,6 @@ graph_eta_phi <- ggplot(trace_eta_phi_LongDF, aes(x = word, y = value, fill = wo
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_eta_phi, nframes = (Iter + 1), fps = 10)
+animate(graph_eta_phi, nframes = (OutIter + 1), fps = 10)
 
 
