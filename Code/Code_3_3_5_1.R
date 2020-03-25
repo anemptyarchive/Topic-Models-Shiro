@@ -50,8 +50,8 @@ sum(n_kv) == sum(n_dv)
 
 
 # 事後分布パラメータの初期値(=事前分布のパラメータ)
-eta_dk <- t(t(n_dk) + alpha_k)
-eta_kv <- t(t(n_kv) + beta_v)
+xi_dk <- t(t(n_dk) + alpha_k)
+xi_kv <- t(t(n_kv) + beta_v)
 
 
 # イタレーション数
@@ -62,13 +62,13 @@ Iter <- 50
 
 
 # 推移の確認用のデータフレームを作成
-trace_eta_theta <- cbind(
-  as.data.frame(eta_dk), 
+trace_xi_theta <- cbind(
+  as.data.frame(xi_dk), 
   doc = as.factor(1:M),  # 文書番号
   Iter = 0 # 試行回数
 )
-trace_eta_phi <- cbind(
-  as.data.frame(eta_kv), 
+trace_xi_phi <- cbind(
+  as.data.frame(xi_kv), 
   topic = as.factor(1:K),  # トピック番号
   Iter = 0 # 試行回数
 )
@@ -82,8 +82,8 @@ for(I in 1:Iter) { ## (試行回数)
         for(n in 1:n_dv[d, v]) { ## (各単語)
           
           # 潜在トピック集合の事後分布を計算:式(3.99)
-          term1 <- digamma(eta_kv[, v]) - digamma(apply(eta_kv, 1, sum))
-          term2 <- digamma(eta_dk[d, ]) - digamma(apply(eta_dk, 2, sum))
+          term1 <- digamma(xi_kv[, v]) - digamma(apply(xi_kv, 1, sum))
+          term2 <- digamma(xi_dk[d, ]) - digamma(apply(xi_dk, 2, sum))
           tmp_z_dvk <- exp(term1) * exp(term2)
           # 正規化
           z_dvk[d, v, ] <- tmp_z_dvk / sum(tmp_z_dvk)
@@ -100,32 +100,32 @@ for(I in 1:Iter) { ## (試行回数)
     n_kv <- apply(tmp_z, c(3, 2), sum)
     
     # 事後分布のパラメータを計算:式(3.89)
-    eta_dk[d, ] <- n_dk[d, ] + alpha_k
+    xi_dk[d, ] <- n_dk[d, ] + alpha_k
     
   } ## (/各文書)
   
   for(k in 1:K) { ## (各トピック)
     
     # 事後分布のパラメータ:式(3.95)
-    eta_kv[k, ] <- n_kv[k, ] + beta_v
+    xi_kv[k, ] <- n_kv[k, ] + beta_v
     
   } ## (/各トピック)
   
   # 推移の確認用のデータフレームを作成
-  tmp_trace_eta_theta <- cbind(
-    as.data.frame(eta_dk), 
+  tmp_trace_xi_theta <- cbind(
+    as.data.frame(xi_dk), 
     doc = as.factor(1:M),  # 文書番号
     Iter = I # 試行回数
   )
-  tmp_trace_eta_phi <- cbind(
-    as.data.frame(eta_kv), 
+  tmp_trace_xi_phi <- cbind(
+    as.data.frame(xi_kv), 
     topic = as.factor(1:K),  # トピック番号
     Iter = I # 試行回数
   )
   
   # データフレームを結合
-  trace_eta_theta <- rbind(trace_eta_theta, tmp_trace_eta_theta)
-  trace_eta_phi   <- rbind(trace_eta_phi, tmp_trace_eta_phi)
+  trace_xi_theta <- rbind(trace_xi_theta, tmp_trace_xi_theta)
+  trace_xi_phi   <- rbind(trace_xi_phi, tmp_trace_xi_phi)
 }
 
 
@@ -134,7 +134,7 @@ for(I in 1:Iter) { ## (試行回数)
 
 ## トピック分布(期待値)
 # thetaの期待値を計算:式(2.10)
-theta_dk <- eta_dk / apply(eta_dk, 1, sum)
+theta_dk <- xi_dk / apply(xi_dk, 1, sum)
 
 # 作図用のデータフレームを作成
 theta_WideDF <- cbind(
@@ -162,7 +162,7 @@ ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) +
 
 ## 単語分布(期待値)
 # phiの期待値を計算:式(2.10)
-phi_kv <- eta_kv / apply(eta_kv, 1, sum)
+phi_kv <- xi_kv / apply(xi_kv, 1, sum)
 
 # 作図用のデータフレームを作成
 phi_WideDF <- cbind(
@@ -198,8 +198,8 @@ library(gganimate)
 
 ## トピック分布
 # データフレームをlong型に変換
-trace_eta_theta_LongDF <- pivot_longer(
-  trace_eta_theta, 
+trace_xi_theta_LongDF <- pivot_longer(
+  trace_xi_theta, 
   cols = -c(doc, Iter),          # 変換せずにそのまま残す現列名
   names_to = "topic",   # 現列名を格納する新しい列の名前
   names_prefix = "V",  # 現列名から取り除く文字列
@@ -208,21 +208,21 @@ trace_eta_theta_LongDF <- pivot_longer(
 )
 
 # 作図
-graph_eta_theta <- ggplot(trace_eta_theta_LongDF, aes(x = topic, y = value, fill = topic)) + 
+graph_xi_theta <- ggplot(trace_xi_theta_LongDF, aes(x = topic, y = value, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
   transition_manual(Iter) + 
-  labs(title = "Variational Bayes for LDA (1):Eta^theta_dk", 
+  labs(title = "Variational Bayes for LDA (1):xi^theta_dk", 
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_eta_theta, nframes = (Iter + 1), fps = 10)
+animate(graph_xi_theta, nframes = (Iter + 1), fps = 10)
 
 
 ## 単語分布
 # 作図用のデータフレームを作成
-trace_eta_phi_LongDF <- pivot_longer(
-  trace_eta_phi, 
+trace_xi_phi_LongDF <- pivot_longer(
+  trace_xi_phi, 
   cols = -c(topic, Iter),        # 変換せずにそのまま残す現列名
   names_to = "word",    # 現列名を格納する新しい列の名前
   names_prefix = "V",  # 現列名から取り除く文字列
@@ -231,16 +231,16 @@ trace_eta_phi_LongDF <- pivot_longer(
 )
 
 # 作図
-graph_eta_phi <- ggplot(trace_eta_phi_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
+graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ topic, labeller = label_both) +      # グラフの分割
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
   transition_manual(Iter) + 
-  labs(title = "Variational Bayes for LDA (1):Eta^phi_kv", 
+  labs(title = "Variational Bayes for LDA (1):xi^phi_kv", 
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_eta_phi, nframes = (Iter + 1), fps = 10)
+animate(graph_xi_phi, nframes = (Iter + 1), fps = 10)
 
 
