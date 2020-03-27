@@ -19,18 +19,30 @@ beta_v  <- rep(2, V)
 
 # 潜在トピック集合の分布
 z_dvk <- array(1 / K, dim = c(M, V, K))
+z_dvk <- array(0, dim = c(M, V, K))
+for(d in 1:M) {
+  for(v in 1:V) {
+    
+    # ランダムに値を生成
+    tmp_q_z <- sample(seq(0, 1, by = 0.01), size = K, replace = TRUE)
+    
+    # 値を正規化
+    z_dvk[d, v, ] <- tmp_q_z / sum(tmp_q_z)
+  }
+}
 
 ## カウントの期待値
-tmp_z <- array(0, dim = c(M, V, K))
+# トピックごとに単語数を掛ける
+tmp_z_n <- array(0, dim = c(M, V, K))
 for(k in 1:K) {
-  tmp_z[, , k] <- z_dvk[, , k] * n_dv
+  tmp_z_n[, , k] <- z_dvk[, , k] * n_dv
 }
 
 # 文書ごとにおいて各トピックが割り当てられた単語数
-n_dk <- apply(tmp_z, c(1, 3), sum)
+n_dk <- apply(tmp_z_n, c(1, 3), sum)
 
 # 全文書において各トピックが割り当てられた単語数
-n_kv <- apply(tmp_z, c(3, 2), sum)
+n_kv <- apply(tmp_z_n, c(3, 2), sum)
 
 # 処理の検証用
 sum(n_dk) == sum(n_dv)
@@ -63,26 +75,29 @@ for(I in 1:Iter) { ## (イタレーション)
       if(n_dv[d, v] > 0) {
         for(n in 1:n_dv[d, v]) { ## (各単語)
           
-          # カウントを更新
+          ## カウントを更新
+          # d,i要素を除く
           z_dvk.di <- z_dvk
           z_dvk.di[d, v, ] <- 0
           
+          # d,i要素を除いたカウントを計算
           E_n_dk.di <- apply(z_dvk.di, c(1, 3), sum)
           V_n_dk.di <- apply(z_dvk.di * (1 - z_dvk.di), c(1, 3), sum)
-          
           for(k in 1:K) {
             tmp_z_dvk.di[, , k] <- z_dvk.di[, , k] * n_dv
           }
           E_n_kv.di <- apply(tmp_z_dvk.di, c(3, 2), sum)
           V_n_kv.di <- apply(tmp_z_dvk.di * (1 - tmp_z_dvk.di), c(3, 2), sum)
           
-          
           # 潜在トピック集合の分布を計算:式(3.130)
           term1 <- (E_n_kv.di[, v] + beta_v[v]) / apply(t(E_n_kv.di) + beta_v, 2, sum) * (E_n_dk.di[d, ] + alpha_k)
           term21 <- V_n_kv.di[, v] / (2 * (E_n_kv.di[, v] + beta_v[v])^2)
           term22 <- V_n_dk.di[d, ] / (2 * (E_n_dk.di[d, ] + alpha_k)^2)
           term3 <- apply(V_n_kv.di, 1, sum) / (2 * apply(t(E_n_kv.di) + beta_v, 2, sum)^2)
-          new_z_dvk[d, v, ] <- term1 * exp(- term21 - term22) * exp(term3)
+          tmp_q_z <- term1 * exp(- term21 - term22) * exp(term3)
+          
+          # 値を正規化
+          new_z_dvk[d, v, ] <- tmp_q_z / sum(tmp_q_z)
           
         } ## (/各単語)
       }
@@ -124,7 +139,6 @@ for(I in 1:Iter) { ## (イタレーション)
 }
 
 
-
 # 推定結果の確認 -----------------------------------------------------------------
 
 ## トピック分布(期待値)
@@ -155,7 +169,7 @@ phi_df <- tibble(
 )
 
 # 作図
-ggplot(phi_df, aes(x = word, y = prob, fill = word)) + 
+ggplot(phi_df, aes(x = word, y = prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
@@ -171,33 +185,31 @@ library(gganimate)
 ## トピック分布
 # 作図
 graph_alpha <- ggplot(trace_alpha, aes(topic, value, fill = topic)) + 
-  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  transition_manual(Iter) + 
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  transition_manual(Iter) + # フレーム
   labs(title = "Collapsed Variational Bayes Method for LDA", 
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_alpha)
+animate(graph_alpha, nframes = (Iter + 1), fps = 10)
 
 
 ## 単語分布
 # 作図
-graph_beta <- ggplot(trace_beta, aes(word, value, fill = word)) + 
-  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
-  theme(legend.position = "none") +                  # 凡例
-  transition_manual(Iter) + 
+graph_beta <- ggplot(trace_beta, aes(word, value, fill = word, color = word)) + 
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
+  theme(legend.position = "none") + # 凡例
+  transition_manual(Iter) + # フレーム
   labs(title = "Collapsed Variational Bayes Method for LDA", 
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
-animate(graph_beta)
+animate(graph_beta, nframes = (Iter + 1), fps = 10)
 
 
 
-
-# 推定結果の確認 -----------------------------------------------------------------
-
+# try -----------------------------------------------------------------
 
 # 
 z_WideDF <- NULL
@@ -231,6 +243,5 @@ z_LongDF %>%
     theme(legend.position = "none") + # 凡例
     labs(title = "Collapsed Variational Bayes Method for LDA", 
          subtitle = expression(z[dn])) # ラベル
-
 
 
