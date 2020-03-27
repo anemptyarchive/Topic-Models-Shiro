@@ -82,7 +82,7 @@ for(OI in 1:OutIter) { ## イタレーション
     # 絶対誤差を計算
     if(OI > 1) { # 初回を飛ばす
       abs_err <- sum(abs(n_dk.new - n_dk) / n_d) / K
-    } else {
+    } else if(OI < 1) {
       abs_err <- Abs_Err + 1
     }
     # インナーループ回数を初期化
@@ -118,8 +118,10 @@ for(OI in 1:OutIter) { ## イタレーション
       # 事後分布のパラメータを計算:式(3.89)
       xi_dk[d, ] <- n_dk[d, ] + alpha_k
       
-      print(paste0("OutIter=", OI, ", InIter=", II, ", Abs_Err=", abs_err))
     }
+    
+    print(paste0("OutIter=", OI, ", InIter=", II, ", Abs_Err=", abs_err))
+    
   } ## (/各文書)
   
   for(k in 1:K) { ## (各トピック)
