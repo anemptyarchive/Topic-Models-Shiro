@@ -18,7 +18,7 @@ alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
 # 潜在トピック集合の分布
-z_di_k <- array(1 / K, dim = c(M, V, K)) # 一様
+z_di_k <- array(1 / K, dim = c(M, V, max(n_dv), K)) # 一様
 z_di_k <- array(0, dim = c(M, V, max(n_dv), K))
 for(d in 1:M) { ## (各文書)
   for(v in 1:V) { ## (各語彙)
@@ -43,8 +43,8 @@ E_n_dk <- apply(z_di_k, c(1, 4), sum)
 E_n_kv <- apply(z_di_k, c(4, 2), sum)
 
 # 処理の検証用
-sum(n_dk) == sum(n_dv)
-sum(n_kv) == sum(n_dv)
+sum(E_n_dk) == sum(n_dv)
+sum(E_n_kv) == sum(n_dv)
 
 
 # 周辺化変分ベイズ ----------------------------------------------------------------
@@ -65,6 +65,9 @@ trace_beta <- tibble(
 )
 
 for(I in 1:Iter) { ## (イタレーション)
+  
+  # 動作確認用
+  start_time <- Sys.time()
   
   for(d in 1:M) { ## (各文書)
     
@@ -132,7 +135,10 @@ for(I in 1:Iter) { ## (イタレーション)
   trace_beta  <- rbind(trace_beta, tmp_trace_beta)
   
   # 動作確認
-  print(paste0(I, "th try..."))
+  print(paste0(
+    I, "th try...", 
+    round(Sys.time() - start_time)
+  ))
 }
 
 
@@ -204,42 +210,5 @@ graph_beta <- ggplot(trace_beta, aes(word, value, fill = word, color = word)) +
 
 # 描画
 animate(graph_beta, nframes = (Iter + 1), fps = 10)
-
-
-
-# try -----------------------------------------------------------------
-
-# 
-z_WideDF <- NULL
-for(k in 1:k) {
-  tmp_z_df <- cbind(
-    as.data.frame(z_di_k), 
-    doc = as.factor(1:M),  # 文書番号
-    topic = as.factor(k) # トピック番号
-  )
-  z_WideDF <- rbind(z_WideDF, tmp_z_df)
-}
-
-# データフレームをlong型に変換
-z_LongDF <- pivot_longer(
-  z_WideDF, 
-  cols = -c(doc, topic),  # 変換せずにそのまま残す現列名
-  names_to = "word",      # 現列名を格納する新しい列の名前
-  names_prefix = "V",     # 現列名から取り除く文字列
-  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
-  values_to = "prob"      # 現要素を格納する新しい列の名前
-)
-
-# 作図
-z_LongDF %>% 
-  filter(doc %in% 1:5) %>% 
-  filter(word %in% 1:5) %>% 
-  ggplot(aes(x = topic, y = prob, fill = topic)) + 
-    geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-    facet_wrap(doc ~ word, labeller = label_both) + # グラフの分割
-#  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
-    theme(legend.position = "none") + # 凡例
-    labs(title = "Collapsed Variational Bayes Method for LDA", 
-         subtitle = expression(z[dn])) # ラベル
 
 
