@@ -34,13 +34,11 @@ n_dv <- mecab_df %>%
   filter(apply(., 1, sum) >= Freq) %>%  # 指定した頻度以上の語彙を取り出す
   t()                                   # 転置
 
-
 # 各文書の単語数
 n_d <- apply(n_dv, 1, sum) # 行方向に和をとる
 
 # 各語彙の単語数
 n_v <- apply(n_dv, 2, sum) # 列方向に和をとる
-
 
 # 文書数
 M <- nrow(n_dv)
