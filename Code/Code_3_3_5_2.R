@@ -32,8 +32,10 @@ beta_v  <- rep(2, V)
 z_dvk <- array(0, dim = c(M, V, K))
 for(d in 1:M) {
   for(v in 1:V) {
+    # ランダムに値を生成
     tmp_q_z <- seq(0, 1, by = 0.01) %>% 
-      sample(size = K, replace = TRUE)
+               sample(size = K, replace = TRUE)
+    # 正規化
     z_dvk[d, v, ] <- tmp_q_z / sum(tmp_q_z)
   }
 }
