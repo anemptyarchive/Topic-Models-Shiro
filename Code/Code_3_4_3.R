@@ -52,9 +52,9 @@ E_n_dk <- apply(z_di_k, c(1, 4), sum)
 # 文書dの語彙vにおいてトピックkが割り当てられた単語数の期待値
 E_n_dkv <- apply(z_di_k, c(1, 4, 2), sum)
 
-# 動作確認
-sum(E_n_dk) == sum(n_dv)
-sum(E_n_dkv) == sum(n_dv)
+# 処理の確認
+#sum(E_n_dk) == sum(n_dv)
+#sum(E_n_dkv) == sum(n_dv)
 
 
 # 確率的変分ベイズ推定 --------------------------------------------------------------
@@ -68,6 +68,9 @@ trace_xi_theta[, , 1] <- xi_dk
 trace_xi_phi[, , 1] <- xi_kv
 
 for(d in 1:M) { ## (各文書)
+  
+  # 動作確認
+  start_time <- Sys.time()
   
   for(s in 1:S) { ## (サンプリング)
     
@@ -101,23 +104,90 @@ for(d in 1:M) { ## (各文書)
     for(k in 1:K) { ## (各トピック)
       
       # 文書番号dをサンプリング
-      d2 <- sample(1:M, size = 1)
+      #d2 <- sample(1:M, size = 1)
       
       # 単語分布の近似事後分布のパラメータを計算:式(3.159)
-      xi_kv[k, ] <- xi_kv[k, ] + nu * (M * E_n_dkv[d2, k, ] + beta_v - xi_kv[k, ])
+      xi_kv[k, ] <- xi_kv[k, ] + nu * (M * E_n_dkv[d, k, ] + beta_v - xi_kv[k, ])
       
     } ## (/各トピック)
     
     # 推移の確認用配列に代入
     trace_xi_theta[d, , s + 1] <- xi_dk[d, ]
-    trace_xi_phi[, , s + 1] <- xi_kv
+    trace_xi_phi[, , s + 1] <- trace_xi_phi[, , s + 1] + xi_kv
     
   } ## (/サンプリング)
+  
+  # 動作確認
+  print(paste0("d=", d, ":", start_time - Sys.time()))
 } ## (/各文書)
 
 
 
 # 推定結果の確認 -----------------------------------------------------------------
+
+## トピック分布(期待値)
+# thetaの期待値を計算:式(2.10)
+theta_dk <- xi_dk / apply(xi_dk, 1, sum)
+
+# 作図用のデータフレームを作成
+theta_WideDF <- cbind(
+  as.data.frame(theta_dk), 
+  doc = as.factor(1:M) # 文書番号
+)
+
+# データフレームをlong型に変換
+theta_LongDF <- pivot_longer(
+  theta_WideDF, 
+  cols = -doc, 
+  names_to = "topic", 
+  names_prefix = "V", 
+  names_ptypes = list(topic = factor()), 
+  values_to = "prob"
+)
+
+# 作図
+ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) + 
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  facet_wrap(~ doc, labeller = label_both) + # グラフの分割
+  labs(title = "Stochastic Variational Bayes for LDA", 
+       subtitle = expression(xi^theta)) # ラベル
+
+
+## 単語分布(期待値)
+# phiの期待値を計算:式(2.10)
+phi_kv <- xi_kv / apply(xi_kv, 1, sum)
+
+# 作図用のデータフレームを作成
+phi_WideDF <- cbind(
+  as.data.frame(phi_kv), 
+  topic = as.factor(1:K) # トピック番号
+)
+
+# データフレームをlong型に変換
+phi_LongDF <- pivot_longer(
+  phi_WideDF, 
+  cols = -topic, 
+  names_to = "word", 
+  names_prefix = "V", 
+  names_ptypes = list(word = factor()), 
+  values_to = "prob"
+)
+
+# 作図
+ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) + 
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  facet_wrap(~ topic, labeller = label_both) + # グラフの分割
+  theme(legend.position = "none") + # 凡例
+  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛(連続値)
+  labs(title = "Stochastic Variational Bayes for LDA", 
+       subtitle = expression(xi^phi)) # ラベル
+
+
+
+
+
+# 推移の確認 -------------------------------------------------------------------
+
 
 # 利用パッケージ
 library(gganimate)
@@ -171,6 +241,7 @@ trace_xi_phi_LongDF <- pivot_longer(
   values_to = "value" # 現セルを格納する列の名前
 )
 
+
 ## トピック分布のパラメータの推移
 # 作図
 graph_xi_theta <- ggplot(trace_xi_theta_LongDF, aes(topic, value, fill = topic)) + 
@@ -213,7 +284,7 @@ animate(graph_xi_phi, nframes = S + 1, fps = 10)
 
 ## 折れ線グラフで可視化
 # トピック番号を指定
-topic_num <- 1
+topic_num <- 3
 
 # 作図
 trace_xi_phi_LongDF %>% 
