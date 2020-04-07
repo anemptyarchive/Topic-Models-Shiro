@@ -24,10 +24,10 @@ alpha_k <- rep(2, K)
 beta_v <- rep(2, V)
 
 # 事後分布のパラメータの初期値
-xi_dk <- seq(1, 5) %>% 
+xi_dk.theta <- seq(1, 5) %>% 
   sample(size = M * K, replace = TRUE) %>% 
   matrix(nrow = M, ncol = K)
-xi_kv <- seq(1, 5) %>% 
+xi_kv.phi <- seq(1, 5) %>% 
   sample(size = K * V, replace = TRUE) %>% 
   matrix(nrow = K, ncol = V)
 
@@ -38,9 +38,9 @@ for(d in 1:M) {
     if(n_dv[d, v] > 0) {
       for(n in 1:n_dv[d, v]) {
         # ランダムに値を生成
-        tmp_z <- sample(seq(0, 1, by = 0.01), size = K, replace = TRUE)
+        tmp_q_z <- sample(seq(0, 1, by = 0.01), size = K, replace = TRUE)
         # 正規化
-        z_di_k[d, v, n, ] <- tmp_z / sum(tmp_z)
+        z_di_k[d, v, n, ] <- tmp_q_z / sum(tmp_q_z)
       }
     }
   }
@@ -63,9 +63,10 @@ E_n_dkv <- apply(z_di_k, c(1, 4, 2), sum)
 # 受け皿
 trace_xi_theta <- array(0, dim = c(M, K, S + 1))
 trace_xi_phi <- array(0, dim = c(K, V, S + 1))
+
 # 初期値を代入
-trace_xi_theta[, , 1] <- xi_dk
-trace_xi_phi[, , 1] <- xi_kv
+trace_xi_theta[, , 1] <- xi_dk.theta
+trace_xi_phi[, , 1] <- xi_kv.phi
 
 for(d in 1:M) { ## (各文書)
   
@@ -81,8 +82,8 @@ for(d in 1:M) { ## (各文書)
           for(n in 1:n_dv[d, v]) { ## (各単語)
             
             # 潜在トピック集合の近似事後分布を計算:式(3.99)
-            term1 <- exp(digamma(xi_kv[, v])) / exp(digamma(apply(xi_kv, 1, sum)))
-            term2 <- exp(digamma(xi_dk[d, ])) / exp(digamma(apply(xi_dk, 2, sum)))
+            term1 <- exp(digamma(xi_kv.phi[, v])) / exp(digamma(apply(xi_kv.phi, 1, sum)))
+            term2 <- exp(digamma(xi_dk.theta[d, ])) / exp(digamma(apply(xi_dk.theta, 2, sum)))
             tmp_q_z <- term1 * term2
             z_di_k[d, v, n, ] <- tmp_q_z / sum(tmp_q_z)
             
@@ -94,40 +95,36 @@ for(d in 1:M) { ## (各文書)
       E_n_dk[d, ] <- apply(z_di_k[d, , , ], 3, sum)
       
       # トピック分布の近似事後分布のパラメータを計算:式(3.89)
-      xi_dk[d, ] <- E_n_dk[d, ] + alpha_k
+      xi_dk.theta[d, ] <- E_n_dk[d, ] + alpha_k
       
     } ## (/イタレーション)
     
-    # 文書dの語彙vにおいてトピックkが割り当てられた単語数の期待値を計算
-    E_n_dkv <- apply(z_di_k, c(1, 4, 2), sum)
-    
     for(k in 1:K) { ## (各トピック)
       
-      # 文書番号dをサンプリング
-      #d2 <- sample(1:M, size = 1)
+      # 文書dの語彙vにおいてトピックkが割り当てられた単語数の期待値を計算
+      E_n_dkv[d, k, ] <- apply(z_di_k[d, , , k], 1, sum)
       
       # 単語分布の近似事後分布のパラメータを計算:式(3.159)
-      xi_kv[k, ] <- xi_kv[k, ] + nu * (M * E_n_dkv[d, k, ] + beta_v - xi_kv[k, ])
+      xi_kv.phi[k, ] <- xi_kv.phi[k, ] + nu * (M * E_n_dkv[d, k, ] + beta_v - xi_kv.phi[k, ])
       
     } ## (/各トピック)
     
     # 推移の確認用配列に代入
-    trace_xi_theta[d, , s + 1] <- xi_dk[d, ]
-    trace_xi_phi[, , s + 1] <- trace_xi_phi[, , s + 1] + xi_kv
+    trace_xi_theta[d, , s + 1] <- xi_dk.theta[d, ]
+    trace_xi_phi[, , s + 1] <- trace_xi_phi[, , s + 1] + xi_kv.phi
     
   } ## (/サンプリング)
   
   # 動作確認
-  print(paste0("d=", d, ":", start_time - Sys.time()))
+  print(paste0(d, "th document", ":", Sys.time() - start_time))
 } ## (/各文書)
-
 
 
 # 推定結果の確認 -----------------------------------------------------------------
 
 ## トピック分布(期待値)
 # thetaの期待値を計算:式(2.10)
-theta_dk <- xi_dk / apply(xi_dk, 1, sum)
+theta_dk <- xi_dk.theta / apply(xi_dk.theta, 1, sum)
 
 # 作図用のデータフレームを作成
 theta_WideDF <- cbind(
@@ -155,7 +152,7 @@ ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) +
 
 ## 単語分布(期待値)
 # phiの期待値を計算:式(2.10)
-phi_kv <- xi_kv / apply(xi_kv, 1, sum)
+phi_kv <- xi_kv.phi / apply(xi_kv.phi, 1, sum)
 
 # 作図用のデータフレームを作成
 phi_WideDF <- cbind(
@@ -183,11 +180,7 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) +
        subtitle = expression(xi^phi)) # ラベル
 
 
-
-
-
 # 推移の確認 -------------------------------------------------------------------
-
 
 # 利用パッケージ
 library(gganimate)
@@ -270,7 +263,7 @@ trace_xi_theta_LongDF %>%
 
 ## 単語分布のパラメータの推移
 # 作図
-graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(word, value, fill = word)) + 
+graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(word, value, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap(~ topic, labeller = label_both) + # グラフの分割
   theme(legend.position = "none") + # 凡例
@@ -281,6 +274,7 @@ graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(word, value, fill = word)) +
 
 # 描画
 animate(graph_xi_phi, nframes = S + 1, fps = 10)
+
 
 ## 折れ線グラフで可視化
 # トピック番号を指定

@@ -20,15 +20,12 @@ n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
 # サンプリング回数(試行回数)
 S <- 1000
 
-
 # トピック数
 K <- 5
-
 
 # 事前分布のパラメータ:(1以上の値)
 alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
-
 
 # トピック分布の初期値
 theta_dk <- seq(0, 1, by = 0.01) %>% 
@@ -37,14 +34,12 @@ theta_dk <- seq(0, 1, by = 0.01) %>%
 # 正規化
 theta_dk <- theta_dk / apply(theta_dk, 1, sum)
 
-
 # 単語分布の初期値
 phi_kv <- seq(0, 1, by = 0.01) %>% 
           sample(size = K * V, replace = TRUE) %>% 
           matrix(nrow = K, ncol = V)
 # 正規化
 phi_kv <- phi_kv / apply(phi_kv, 1, sum)
-
 
 # 潜在トピック集合の初期値
 z_di <- array(0, dim = c(M, V, max(n_dv)))
@@ -57,7 +52,6 @@ n_kv <- new_n_kv <- matrix(0, nrow = K, ncol = V)
 
 
 # ギブスサンプリング ----------------------------------------------------------------------
-
 
 # 推移の確認用データフレームを作成
 trace_theta <- cbind(
@@ -203,7 +197,6 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word)) +
 
 # 推移の確認用gif ---------------------------------------------------------------------
 
-
 # 利用パッケージ
 library(gganimate)
 
@@ -228,7 +221,7 @@ graph_theta <- ggplot(trace_theta_LongDF, aes(x = topic, y = prob, fill = topic)
        subtitle = "S={current_frame}") # ラベル
 
 # 描画
-animate(graph_theta)
+animate(graph_theta, nframes = S + 1, fps = 10)
 
 
 ## 単語分布
@@ -253,7 +246,7 @@ graph_phi <- ggplot(trace_phi_LongDF, aes(x = word, y = prob, fill = word)) +
        subtitle = "S={current_frame}") # ラベル
 
 # 描画
-animate(graph_phi)
+animate(graph_phi, nframes = S + 1, fps = 10)
 
 
 # try ---------------------------------------------------------------------
