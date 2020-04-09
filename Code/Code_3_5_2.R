@@ -5,7 +5,6 @@
 library(tidyverse)
 
 
-
 # パラメータの設定 ----------------------------------------------------------------
 
 # サンプリング数
@@ -15,7 +14,7 @@ S <- 10
 R <- 5
 
 # しきい値
-threshold <- 0.1
+threshold <- 10
 
 
 # トピック数
@@ -96,7 +95,7 @@ for(d in 1:M) { ## (各文書)
         }
         
         # ESSを計算
-        ESS <- 1 / apply(w_z_di_s ^ 2, c(1, 2), sum)
+        ESS <- 1 / sum(w_z_di_s[d, v, n, ] ^ 2)
         
         if(ESS < threshold) {
           
@@ -111,9 +110,14 @@ for(d in 1:M) { ## (各文書)
               # カウント
               n_dk.lm_s <- rep(0, K)
               n_kv.lm_s <- matrix(0, nrow = K, ncol = V)
+              if(l == 1) {
+                mar <- 1
+              } else if(l > 1) {
+                mar <- 2
+              }
               for(k in 1:K) {
                 n_dk.lm_s[k] <- sum(z_di_s[1:l, 1:m_v, 1:m_n, s] == k)
-                n_kv.lm_s[k, ] <- apply(z_di_s[1:l, , , s] == k, 2, sum)
+                n_kv.lm_s[k, ] <- apply(z_di_s[1:l, , , s] == k, mar, sum)
               }
               tmp_n_k <- rep(0, K)
               tmp_n_k[z_di_s[l, m_v, m_n, s]] <- 1
@@ -121,7 +125,7 @@ for(d in 1:M) { ## (各文書)
               n_kv.lm_s <- n_kv.lm_s - tmp_n_k
               
               # リサンプリング確率を計算:式(3.179)
-              term1 <- (n_kv.lm_s + beta_v[m_v]) / apply(t(n_kv.lm_s[, , s]) + beta_v, 2, sum)
+              term1 <- (n_kv.lm_s[, m_v] + beta_v[m_v]) / apply(t(n_kv.lm_s) + beta_v, 2, sum)
               term2 <- (n_dk.lm_s + alpha_k) / sum(n_dk.lm_s + alpha_k)
               tmp_q_z <- term1 * term2
               
@@ -131,6 +135,7 @@ for(d in 1:M) { ## (各文書)
             } ## (/)
           } ## (/)
           
+          # 重みを初期化
           w_z_di_s <- array(1 / S, dim = c(M, V, max(n_dv), S))
         }
         
@@ -139,8 +144,56 @@ for(d in 1:M) { ## (各文書)
   } ## (/各語彙)
 } ## (/各文書)
 
-
+warnings()
 
 # 推定結果の確認 -----------------------------------------------------------------
 
+n_dvk <- array(0, dim = c(M, V, K))
+for(k in 1:K) {
+  n_dvk[, , k] <- apply(z_di_s == k, c(1, 2), sum)
+}
+
+n_kv <- matrix(0, nrow = K, ncol = V)
+for(k in 1:K) {
+  n_kv[k, ] <- apply(z_di_s == k, 2, sum)
+}
+
+p_n_kv <- t(t(n_kv) / apply(n_kv, 2, sum))
+
+
+n_kv_WideDF <- cbind(
+  as.data.frame(t(n_kv)), 
+  word = v_index[["TERM"]]
+)
+
+n_kv_LongDF <- pivot_longer(
+  n_kv_WideDF, 
+  cols = -word, 
+  names_to = "topic", 
+  names_prefix = "V", 
+  names_ptypes = list(topic = factor()), 
+  values_to = "value"
+)
+
+ggplot(n_kv_LongDF, aes(x = topic, y = value, fill = topic)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  facet_wrap(~ word) + 
+  labs(title = "Particle filter for LDA")
+
+ggplot(n_kv_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  facet_wrap(~ topic, labeller = label_both) + 
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90)) + 
+  labs(title = "Particle filter for LDA")
+
+# try ---------------------------------------------------------------------
+
+z_di_k <- seq(0, 1, by = 0.01) %>% 
+  sample(size = M * V * max(n_dv) * S, replace = TRUE) %>% 
+  array(c(M, V, max(n_dv), K))
+for(k in 1:K) {
+  z_di_k[, , , k] <- z_di_k[, , , k] / apply(z_di_k, c(1, 2, 3), sum)
+  #z_di_k[, , , k][n_dv == 0] <- 0
+}
+array(rep(2, 8), dim = c(2, 2, 2)) - array(rep(1, 8), dim = c(2, 2, 2))
 
