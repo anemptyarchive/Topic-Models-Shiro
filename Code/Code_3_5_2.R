@@ -8,14 +8,13 @@ library(tidyverse)
 # パラメータの設定 ----------------------------------------------------------------
 
 # サンプリング数
-S <- 10
+S <- 100
 
 # リサンプリング数
-R <- 5
+R <- 30
 
-# しきい値
-threshold <- 10
-
+# 閾値
+threshold <- 20
 
 # トピック数
 K <- 5
@@ -52,9 +51,11 @@ n_kv_s <- array(0, dim = c(K, V, S))
 
 # パーティクルフィルタ --------------------------------------------------------------
 
-d <- v <- n <- k <- s <- 1
 for(d in 1:M) { ## (各文書)
   
+  # 1期(語)前の値i-1を初期化
+  old_v <- old_n <- 1 # (本当は0)
+
   for(v in 1:V) { ## (各語彙)
     if(n_dv[d, v] > 0) {
       for(n in 1:n_dv[d, v]) { ## (各単語)
@@ -65,16 +66,10 @@ for(d in 1:M) { ## (各文書)
           term1 <- (n_kv_s[, v, s] + beta_v[v]) / apply(t(n_kv_s[, , s]) + beta_v, 2, sum)
           term2 <- (n_dk_s[d, , s] + alpha_k) / sum(n_dk_s[d, , s] + alpha_k)
           tmp_q_z <- term1 * term2
-          z_di_k[d, v, n, ] <- tmp_q_z / sum(tmp_q_z)
+          z_di_k[d, v, n, ] <- tmp_q_z / sum(tmp_q_z) # 正規化
           
           # 潜在トピックをサンプリング
           z_di_s[d, v, n, s] <- sample(1:K, size = 1, prob = z_di_k[d, v, n, ])
-          
-          # カウント
-          tmp_n_k <- rep(0, K)
-          tmp_n_k[z_di_s[d, v, n, s]] <- 1
-          n_dk_s[d, , s] <- n_dk_s[d, , s] + tmp_n_k
-          n_kv_s[, v, s] <- n_kv_s[, v, s] + tmp_n_k
           
           ## 重みを計算:式(3.175)
           # 式(3.176)の計算
@@ -83,29 +78,31 @@ for(d in 1:M) { ## (各文書)
           p_wz_s <- term1 * term2
           
           # 重みを計算:式(3.175)
-          w_z_di_s[d, v, n, s] <- w_z_di_s[d, v, n, s] * sum(p_wz_s)
+          w_z_di_s[d, v, n, s] <- w_z_di_s[d, old_v, old_n, s] * sum(p_wz_s)
+          
+          # 割り当てられた潜在トピックに応じてカウントに加算
+          tmp_n_k <- rep(0, K) # 初期化
+          tmp_n_k[z_di_s[d, v, n, s]] <- 1 # k(=z_di)番目に1を代入
+          n_dk_s[d, , s] <- n_dk_s[d, , s] + tmp_n_k
+          n_kv_s[, v, s] <- n_kv_s[, v, s] + tmp_n_k
           
         } ## (/サンプリング)
         
         # 重みを正規化
         w_z_di_s[d, v, n, ] <- w_z_di_s[d, v, n, ] / sum(w_z_di_s[d, v, n, ])
-        # NaN対策(仮)
-        if(is.nan(w_z_di_s[d, v, n, 1])) {
-          w_z_di_s[d, v, n, ] <- rep(1 / K, K)
-        }
         
         # ESSを計算
         ESS <- 1 / sum(w_z_di_s[d, v, n, ] ^ 2)
         
         if(ESS < threshold) {
           
-          for(r in 1:R) {
+          for(r in 1:R) { ## (活性化サンプル)
             
             l <- sample(1:M, size = 1)
             m_v <- sample(1:V, size = 1, prob = n_dv[l, ])
             m_n <- sample(1:n_dv[l, m_v], size = 1)
             
-            for(s in 1:S) {
+            for(s in 1:S) { ## (リサンプリング)
               
               # カウント
               n_dk.lm_s <- rep(0, K)
@@ -132,12 +129,16 @@ for(d in 1:M) { ## (各文書)
               # 潜在トピックをサンプリング
               z_di_s[l, m_v, m_n, s] <- sample(1:K, size = 1, prob = tmp_q_z)
             
-            } ## (/)
-          } ## (/)
+            } ## (/リサンプリング)
+          } ## (/活性化サンプル)
           
           # 重みを初期化
           w_z_di_s <- array(1 / S, dim = c(M, V, max(n_dv), S))
         }
+        
+        # 1期(語)前の添字を保存
+        old_v <- v
+        old_n <- n
         
       } ## (/各単語)
     }
