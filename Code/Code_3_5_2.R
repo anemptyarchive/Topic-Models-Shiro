@@ -8,7 +8,7 @@ library(tidyverse)
 # パラメータの設定 ----------------------------------------------------------------
 
 # サンプリング数
-S <- 100
+S <- 10
 
 # リサンプリング数
 R <- 30
@@ -42,7 +42,7 @@ for(d in 1:M) {
 z_di_s <- array(0, dim = c(M, V, max(n_dv), S))
 
 # 重みの受け皿
-w_z_di_s <- array(0, dim = c(M, V, max(n_dv), S))
+w_z_di_s <- array(1/S, dim = c(M, V, max(n_dv), S))
 
 # 割り当てられたトピックに関する単語数の初期値
 n_dk_s <- array(0, dim = c(M, K, S))
@@ -98,26 +98,33 @@ for(d in 1:M) { ## (各文書)
           
           for(r in 1:R) { ## (活性化サンプル)
             
+            # 活性化する重みをサンプリング
             l <- sample(1:M, size = 1)
             m_v <- sample(1:V, size = 1, prob = n_dv[l, ])
             m_n <- sample(1:n_dv[l, m_v], size = 1)
             
             for(s in 1:S) { ## (リサンプリング)
               
-              # カウント
+              # カウントを初期化
               n_dk.lm_s <- rep(0, K)
               n_kv.lm_s <- matrix(0, nrow = K, ncol = V)
+              
+              # l(d)=1のときに配列の構造が変わる対策(仮)
               if(l == 1) {
                 mar <- 1
               } else if(l > 1) {
                 mar <- 2
               }
+              
+              # 潜在トピックに関するカウントを計算
               for(k in 1:K) {
                 n_dk.lm_s[k] <- sum(z_di_s[1:l, 1:m_v, 1:m_n, s] == k)
                 n_kv.lm_s[k, ] <- apply(z_di_s[1:l, , , s] == k, mar, sum)
               }
-              tmp_n_k <- rep(0, K)
-              tmp_n_k[z_di_s[l, m_v, m_n, s]] <- 1
+              
+              # l,m要素について取り除く(iをvとnに分けているためi-1の処理がめんどいため)
+              tmp_n_k <- rep(0, K) # 初期化
+              tmp_n_k[z_di_s[l, m_v, m_n, s]] <- 1 # k番目に1を代入
               n_dk.lm_s <- n_dk.lm_s - tmp_n_k
               n_kv.lm_s <- n_kv.lm_s - tmp_n_k
               
@@ -148,6 +155,52 @@ for(d in 1:M) { ## (各文書)
 warnings()
 
 # 推定結果の確認 -----------------------------------------------------------------
+
+w_z_di_k <- array(0, dim = c(M, V, max(n_dv), K))
+for(d in 1:M) {
+  for(v in 1:V) {
+    if(n_dv[d, v] > 0) {
+      for(n in 1:n_dv[d, v]) {
+        for(k in 1:K) {
+          tmp_w_s <- w_z_di_s[d, v, n, ]
+          tmp_z_s <- z_di_s[d, v, n, ]
+          w_z_di_k[d, v, n, k] <- sum(tmp_w_s[tmp_z_s == k])
+        }
+      }
+    }
+  }
+}
+w_z_dv_k <- apply(w_z_di_k, c(1, 2, 4), sum)
+
+w_WideDF <- data.frame()
+for(k in 1:K) {
+  tmp_df <- cbind(
+    as.data.frame(w_z_dv_k[, , k]), 
+    doc = as.factor(1:M), 
+    topic = as.factor(k)
+  )
+  w_WideDF <- rbind(w_WideDF, tmp_df)
+}
+
+w_LongDF <- pivot_longer(
+  w_WideDF, 
+  cols = -c(doc, topic), 
+  names_to = "word", 
+  names_prefix = "V", 
+  names_ptypes = list(word = factor()), 
+  values_to = "value"
+)
+
+ggplot(w_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  facet_wrap(~ topic, labeller = label_both) + 
+  theme(legend.position = "none") + 
+  scale_x_discrete(breaks = seq(1, V, by = 10)) + 
+  labs(title = "Particle filter for LDA", 
+       subtitle = "w")
+
+
+
 
 n_dvk <- array(0, dim = c(M, V, K))
 for(k in 1:K) {
