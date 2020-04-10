@@ -8,7 +8,7 @@ library(tidyverse)
 # パラメータの設定 ----------------------------------------------------------------
 
 # サンプリング数
-S <- 10
+S <- 100
 
 # リサンプリング数
 R <- 30
@@ -170,7 +170,9 @@ for(d in 1:M) {
     }
   }
 }
+w_z_di_k <- sum(w_z_di_s[d, v, n, ][z_di_s[d, v, n, ] == k])
 w_z_dv_k <- apply(w_z_di_k, c(1, 2, 4), sum)
+
 
 w_WideDF <- data.frame()
 for(k in 1:K) {
@@ -188,16 +190,26 @@ w_LongDF <- pivot_longer(
   names_to = "word", 
   names_prefix = "V", 
   names_ptypes = list(word = factor()), 
-  values_to = "value"
+  values_to = "prob"
 )
 
-ggplot(w_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
+ggplot(w_LongDF, aes(x = word, y = prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + 
   facet_wrap(~ topic, labeller = label_both) + 
   theme(legend.position = "none") + 
   scale_x_discrete(breaks = seq(1, V, by = 10)) + 
   labs(title = "Particle filter for LDA", 
        subtitle = "w")
+
+w_LongDF %>% 
+  filter(doc == 1:5) %>% 
+  ggplot(aes(x = word, y = prob, fill = word, color = word)) + 
+    geom_bar(stat = "identity", position = "dodge") + 
+    facet_wrap(topic ~ doc, labeller = label_both, scales = "free_y") + 
+    theme(legend.position = "none") + 
+    scale_x_discrete(breaks = seq(1, V, by = 10)) + 
+    labs(title = "Particle filter for LDA", 
+         subtitle = "w")
 
 
 
@@ -231,7 +243,7 @@ n_kv_LongDF <- pivot_longer(
 
 ggplot(n_kv_LongDF, aes(x = topic, y = value, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") + 
-  facet_wrap(~ word) + 
+  facet_wrap(~ word, scales = "free_y") + 
   labs(title = "Particle filter for LDA")
 
 ggplot(n_kv_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
