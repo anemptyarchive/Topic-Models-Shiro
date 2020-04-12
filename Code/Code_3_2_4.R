@@ -25,30 +25,24 @@ K <- 5
 alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
-# 潜在トピック集合の初期値:(0固定)
+# 潜在トピック集合の初期値
 z_di <- array(0, dim = c(M, V, max(n_dv)))
 
-# 各文書において各トピックが割り当てられた単語数
+# 各文書において各トピックが割り当てられた単語数の初期値
 n_dk <- matrix(0, nrow = M, ncol = K)
 
-# 全文書において各トピックが割り当てられた単語数
+# 全文書において各トピックが割り当てられた単語数の初期値
 n_kv <- matrix(0, nrow = K, ncol = V)
 
 
 # ギブスサンプリング ----------------------------------------------------------------------
 
-# 推移の確認用データフレームを作成
-trace_alpha <- tibble(
-  value = alpha_k, 
-  topic = as.factor(1:K),  # トピック番号
-  S = 0 # 試行回数
-)
-trace_beta <- tibble(
-  value = beta_v, 
-  word = as.factor(1:V),  # 語彙番号
-  S = 0 # 試行回数
-)
-
+# 推移の確認用
+trace_alpha <- matrix(0, nrow = K, ncol = S + 1)
+trace_beta <- matrix(0, nrow = V, ncol = S + 1)
+# 初期値を代入
+trace_alpha[, 1] <- alpha_k
+trace_beta[, 1] <- beta_v
 
 for(s in 1:S) { ## (イタレーション)
   
@@ -102,21 +96,9 @@ for(s in 1:S) { ## (イタレーション)
   beta_denom <- sum(digamma(apply(t(n_kv) + beta_v, 2, sum)) - digamma(sum(beta_v)))
   beta_v <- beta_v * beta_numer / beta_denom
   
-  # 推移の確認用データフレームを作成
-  tmp_trace_alpha <- tibble(
-    value = alpha_k, 
-    topic = as.factor(1:K),  # トピック番号
-    S = s # 試行回数
-  )
-  tmp_trace_beta <- tibble(
-    value = beta_v, 
-    word = as.factor(1:V),  # 語彙番号
-    S = s # 試行回数
-  )
-  
-  # データフレームを結合
-  trace_alpha <- rbind(trace_alpha, tmp_trace_alpha)
-  trace_beta  <- rbind(trace_beta, tmp_trace_beta)
+  # 推移の確認用
+  trace_alpha[, s + 1] <- alpha_k
+  trace_beta[, s + 1]  <- beta_v
 }
 
 # 処理の検証
@@ -155,7 +137,7 @@ phi_df <- tibble(
 )
 
 # 作図
-ggplot(phi_df, aes(x = word, y = prob, fill = word)) + 
+ggplot(phi_df, aes(x = word, y = prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
@@ -163,26 +145,57 @@ ggplot(phi_df, aes(x = word, y = prob, fill = word)) +
        subtitle = expression(phi)) # ラベル
 
 
-# 推移の確認用gif ---------------------------------------------------------------------
+# 推移の確認 ---------------------------------------------------------------------
 
 # 利用パッケージ
 library(gganimate)
 
+
 ## トピック分布
+# データフレームを作成
+trace_alpha_WideDF <- cbind(
+  as.data.frame(t(trace_alpha)), 
+  S = as.factor(0:S)  # 試行回数
+)
+
+# データフレームをlong型に変換
+trace_alpha_LongDF <- pivot_longer(
+  trace_alpha_WideDF, 
+  cols = -S, 
+  names_to = "topic", 
+  names_prefix = "V", 
+  values_to = "value"
+)
+
 # 作図
-graph_alpha <- ggplot(trace_alpha, aes(topic, value, fill = topic)) + 
+graph_alpha <- ggplot(trace_alpha_LongDF, aes(topic, value, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   transition_manual(S) + 
   labs(title = "Gibbs sampler for LDA", 
        subtitle = "S={current_frame}") # ラベル
 
 # 描画
-animate(graph_alpha)
+animate(graph_alpha, nframes = S + 1, fps = 10)
 
 
 ## 単語分布
+# データフレームを作成
+trace_beta_WideDF <- cbind(
+  as.data.frame(t(trace_beta)), 
+  S = as.factor(0:S)  # 試行回数
+)
+
+# データフレームをlong型に変換
+trace_beta_LongDF <- pivot_longer(
+  trace_beta_WideDF, 
+  cols = -S, 
+  names_to = "word", 
+  names_prefix = "V", 
+  values_to = "value"
+)
+
 # 作図
-graph_beta <- ggplot(trace_beta, aes(word, value, fill = word)) + 
+graph_beta <- ggplot(trace_beta_LongDF, aes(word, value, fill = word)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
@@ -191,7 +204,6 @@ graph_beta <- ggplot(trace_beta, aes(word, value, fill = word)) +
        subtitle = "S={current_frame}") # ラベル
 
 # 描画
-animate(graph_beta)
-
+animate(graph_beta, nframes = S + 1, fps = 10)
 
 
