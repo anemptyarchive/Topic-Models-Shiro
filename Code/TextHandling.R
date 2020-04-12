@@ -1,14 +1,13 @@
 
 # Text Handling -----------------------------------------------------------
 
-
 # 利用パッケージ
 library(RMeCab)
 library(tidyverse)
 
 
 # 形態素解析
-mecab_df <- docDF("text_data", type = 1) # テキストファイルの保存先を指定する
+res_mecab <- docDF("text_data", type = 1) # テキストファイルの保存先を指定する
 
 
 ## 抽出する単語の指定
@@ -22,11 +21,11 @@ PoS_2 <- "一般|^自立"
 Freq <- 5
 
 # 抽出しない単語を指定
-stop_words <- "[a-z]"
+stop_words <- "[a-zA-Z]"
 
 
 # 文書ごとの各語彙の出現回数(単語数)
-n_dv <- mecab_df %>% 
+n_dv <- res_mecab %>% 
   filter(grepl(PoS_1, POS1)) %>%        # 指定した品詞(大分類)を取り出す
   filter(grepl(PoS_2, POS2)) %>%        # 指定した品詞(細分類)を取り出す
   filter(!grepl(stop_words, TERM)) %>%  # ストップワードを除く
@@ -45,5 +44,19 @@ M <- nrow(n_dv)
 
 # 総語彙数
 V <- ncol(n_dv)
+
+# 語彙インデックス
+tmp_v <- res_mecab %>% 
+  filter(grepl(PoS_1, POS1)) %>%        # 指定した品詞(大分類)を取り出す
+  filter(grepl(PoS_2, POS2)) %>%        # 指定した品詞(細分類)を取り出す
+  filter(!grepl(stop_words, TERM)) %>%  # ストップワードを除く
+  select(-c(TERM, POS1, POS2)) %>%      # 数値列のみを残す
+  apply(., 1, sum) >= Freq # 指定した頻度以上の語彙を取り出す
+v_index <- res_mecab %>% 
+  filter(grepl(PoS_1, POS1)) %>%        # 指定した品詞(大分類)を取り出す
+  filter(grepl(PoS_2, POS2)) %>%        # 指定した品詞(細分類)を取り出す
+  filter(!grepl(stop_words, TERM)) %>%  # ストップワードを除く
+  select(TERM) %>% 
+  filter(tmp_v)
 
 
