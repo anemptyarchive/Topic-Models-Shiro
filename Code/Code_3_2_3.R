@@ -16,7 +16,7 @@ n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
 # パラメータの設定 -----------------------------------------------------------------
 
 # サンプリング回数を指定
-S <- 100
+S <- 1000
 
 # トピック数を指定
 K <- 5
@@ -42,10 +42,10 @@ phi_kv <- phi_kv / apply(phi_kv, 1, sum)
 # 潜在トピック集合の初期値
 z_di <- array(0, dim = c(M, V, max(n_dv)))
 
-# 各文書において各トピックが割り当てられた単語数
+# 各文書において各トピックが割り当てられた単語数の初期値
 n_dk <- matrix(0, nrow = M, ncol = K)
 
-# 全文書において各トピックが割り当てられた単語数
+# 全文書において各トピックが割り当てられた単語数の初期値
 n_kv <- matrix(0, nrow = K, ncol = V)
 
 
@@ -247,72 +247,42 @@ animate(graph_phi, nframes = S + 1, fps = 10)
 
 # try ---------------------------------------------------------------------
 
-df <- tibble()
-N <- 3000
-for(n in 1:N) {
-  tmp_df <- tibble(
-    x = sample(1:10, 10, replace = TRUE), 
-    y = sample(1:10, 10, replace = TRUE), 
-    N = as.numeric(n)
+theta_df0 <- apply(trace_theta, c(1, 2), sum) / (S + 1)
+
+theta_df <- cbind(
+    as.data.frame(theta_df0), 
+    doc = as.factor(1:M)
+  ) %>% 
+  pivot_longer(
+    cols = -doc, 
+    names_to = "topic", 
+    names_prefix = "V", 
+    names_ptypes = list(topic = factor()), 
+    values_to = "prob"
   )
-  df <- rbind(df, tmp_df)
-}
-df$N <- as.numeric(df$N)
-graph <- ggplot(df, aes(x, y)) + 
+
+ggplot(theta_df, aes(topic, prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") + 
-  transition_manual(N) + 
-  labs(title = "N={current_frame}")
-animate(graph, duration = N / 10)
-
-## n_dk
-# 作図用のデータフレームを作成
-n_dk_WideDF <- cbind(
-  as.data.frame(n_dk), 
-  doc = as.factor(1:M)
-)
-
-# データフレームをlong型に変換
-n_dk_LongDF <- pivot_longer(
-  n_dk_WideDF, 
-  cols = -doc,        # 変換せずにそのまま残す現列名
-  names_to = "topic",    # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
-  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
-  values_to = "count"    # 現要素を格納する新しい列の名前
-)
-
-# 作図
-ggplot(n_dk_LongDF, aes(topic, count, fill = topic)) + 
-  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  facet_wrap(~ doc, labeller = label_both) + # 画面の分割
-  labs(title = "Gibbs sampler for LDA", 
-       subtitle = expression(n[dk])) # ラベル
+  facet_wrap(~ doc, labeller = label_both)
 
 
-## n_kv
-# 作図用のデータフレームを作成
-n_kv_WideDF <- cbind(
-  as.data.frame(n_kv), 
+phi_df0 <- apply(trace_phi, c(1, 2), sum) / (S + 1)
+
+phi_df <- cbind(
+  as.data.frame(phi_df0), 
   topic = as.factor(1:K)
-)
+) %>% 
+  pivot_longer(
+    cols = -topic, 
+    names_to = "word", 
+    names_prefix = "V", 
+    names_ptypes = list(topic = factor()), 
+    values_to = "prob"
+  )
 
-# データフレームをlong型に変換
-n_kv_LongDF <- pivot_longer(
-  n_kv_WideDF, 
-  cols = -topic,        # 変換せずにそのまま残す現列名
-  names_to = "word",    # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
-  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
-  values_to = "count"    # 現要素を格納する新しい列の名前
-)
-
-# 作図
-ggplot(n_kv_LongDF, aes(word, count, fill = word)) + 
-  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  facet_wrap(~ topic, labeller = label_both) + # 画面の分割
-  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
-  theme(legend.position = "none") + # 凡例
-  labs(title = "Gibbs sampler for LDA", 
-       subtitle = expression(n[kv])) # ラベル
+ggplot(phi_df, aes(word, prob, fill = word, color = word)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  facet_wrap(~ topic, labeller = label_both) +
+  theme(legend.position = "none")
 
 
