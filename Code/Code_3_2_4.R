@@ -207,3 +207,19 @@ graph_beta <- ggplot(trace_beta_LongDF, aes(word, value, fill = word)) +
 animate(graph_beta, nframes = S + 1, fps = 10)
 
 
+### 折れ線グラフ
+## トピック分布のパラメータ
+ggplot(trace_alpha_LongDF, aes(x = as.numeric(S), y = value, color = topic)) + 
+  geom_line() + # 折れ線グラフ
+  labs(title = "Gibbs sampler for LDA", 
+       subtitle = expression(alpha), 
+       x = "Iteration") # ラベル
+
+## 単語分布のパラメータ
+ggplot(trace_beta_LongDF, aes(x = as.numeric(S), y = value, color = word)) + 
+  geom_line(alpha = 0.5) + # 折れ線グラフ
+  theme(legend.position = "none") + # 凡例
+  labs(title = "Gibbs sampler for LDA", 
+       subtitle = expression(beta), 
+       x = "Iteration") # ラベル
+
