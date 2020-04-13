@@ -4,13 +4,13 @@
 # 利用パッケージ
 library(tidyverse)
 
-## 動作検証用
+## 簡易文書データ
 # 文書数
 M <- 10
 # 語彙数
 V <- 20
 # 文書ごとの各語彙数
-n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
+n_dv <- matrix(sample(1:10, M * V, replace = TRUE), M, V)
 
 
 # パラメータの設定 ----------------------------------------------------------------
@@ -30,7 +30,7 @@ z_dvk <- array(0, dim = c(M, V, K))
 for(d in 1:M) {
   for(v in 1:V) {
     tmp_q_z <- seq(0, 1, by = 0.01) %>% 
-                     sample(size = K, replace = TRUE)
+               sample(size = K, replace = TRUE)
     z_dvk[d, v, ] <- tmp_q_z / sum(tmp_q_z)
   }
 }
@@ -58,17 +58,12 @@ xi_kv <- t(t(n_kv) + beta_v)
 
 # 変分ベイズ -------------------------------------------------------------------
 
-# 推移の確認用のデータフレームを作成
-trace_xi_theta <- cbind(
-  as.data.frame(xi_dk), 
-  doc = as.factor(1:M),  # 文書番号
-  Iter = 0 # 試行回数
-)
-trace_xi_phi <- cbind(
-  as.data.frame(xi_kv), 
-  topic = as.factor(1:K),  # トピック番号
-  Iter = 0 # 試行回数
-)
+# 推移の確認用
+trace_xi_theta <- array(0, dim = c(M, K, S + 1))
+trace_xi_phi   <- array(0, dim = c(K, V, S + 1))
+# 初期値を代入
+trace_xi_theta[, , 1] <- xi_dk
+trace_xi_phi[, , 1]   <- xi_kv
 
 for(I in 1:Iter) { ## (試行回数)
   
@@ -108,21 +103,10 @@ for(I in 1:Iter) { ## (試行回数)
     
   } ## (/各トピック)
   
-  # 推移の確認用のデータフレームを作成
-  tmp_trace_xi_theta <- cbind(
-    as.data.frame(xi_dk), 
-    doc = as.factor(1:M),  # 文書番号
-    Iter = I # 試行回数
-  )
-  tmp_trace_xi_phi <- cbind(
-    as.data.frame(xi_kv), 
-    topic = as.factor(1:K),  # トピック番号
-    Iter = I # 試行回数
-  )
+  # 推移の確認用
+  trace_xi_theta[, , s + 1] <- xi_dk
+  trace_xi_phi[, , s + 1]   <- xi_kv
   
-  # データフレームを結合
-  trace_xi_theta <- rbind(trace_xi_theta, tmp_trace_xi_theta)
-  trace_xi_phi   <- rbind(trace_xi_phi, tmp_trace_xi_phi)
 }
 
 
@@ -186,23 +170,52 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word, color = word)) +
        subtitle = expression(Phi)) # ラベル
 
 
-# 推移の確認用gif ---------------------------------------------------------------------
+# 推移の確認 ---------------------------------------------------------------------
 
 # 利用パッケージ
 library(gganimate)
 
 
-## トピック分布
+# データフレームに変換
+trace_xi_theta_WideDF <- data.frame()
+trace_xi_phi_WideDF <- data.frame()
+for(s in 1:(S + 1)) {
+  # データフレームに変換
+  tmp_trace_xi_theta <- cbind(
+    as.data.frame(trace_xi_theta), 
+    doc = as.factor(1:M), # 文書番号
+    Iter = s - 1 # 試行回数
+  )
+  tmp_trace_xi_phi <- cbind(
+    as.data.frame(trace_xi_phi), 
+    topic = as.factor(1:K), # トピック番号
+    Iter = s - 1 # 試行回数
+  )
+  # 結合
+  trace_xi_theta_WideDF <- rbind(trace_xi_theta_WideDF, tmp_trace_xi_theta)
+  trace_xi_phi_WideDF <- rbind(trace_xi_phi_WideDF, tmp_trace_xi_phi)
+}
+
 # データフレームをlong型に変換
 trace_xi_theta_LongDF <- pivot_longer(
-  trace_xi_theta, 
+  trace_xi_theta_WideDF, 
   cols = -c(doc, Iter),          # 変換せずにそのまま残す現列名
   names_to = "topic",   # 現列名を格納する新しい列の名前
   names_prefix = "V",  # 現列名から取り除く文字列
   names_ptypes = list(topic = factor()),  # 現列名を要素とする際の型
   values_to = "value"    # 現要素を格納する新しい列の名前
 )
+trace_xi_phi_LongDF <- pivot_longer(
+  trace_xi_phi_WideDF, 
+  cols = -c(topic, Iter),        # 変換せずにそのまま残す現列名
+  names_to = "word",    # 現列名を格納する新しい列の名前
+  names_prefix = "V",  # 現列名から取り除く文字列
+  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
+  values_to = "value"    # 現要素を格納する新しい列の名前
+)
 
+
+## トピック分布
 # 作図
 graph_xi_theta <- ggplot(trace_xi_theta_LongDF, aes(x = topic, y = value, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
@@ -216,16 +229,6 @@ animate(graph_xi_theta, nframes = (Iter + 1), fps = 10)
 
 
 ## 単語分布
-# 作図用のデータフレームを作成
-trace_xi_phi_LongDF <- pivot_longer(
-  trace_xi_phi, 
-  cols = -c(topic, Iter),        # 変換せずにそのまま残す現列名
-  names_to = "word",    # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
-  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
-  values_to = "value"    # 現要素を格納する新しい列の名前
-)
-
 # 作図
 graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(x = word, y = value, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
@@ -238,5 +241,33 @@ graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(x = word, y = value, fill = word
 
 # 描画
 animate(graph_xi_phi, nframes = (Iter + 1), fps = 10)
+
+
+### 折れ線グラフ
+## トピック分布のパラメータ
+# 文書番号を指定
+doc_num <- 10
+
+# 作図
+trace_xi_theta_LongDF %>% 
+  filter(doc == doc_num) %>% 
+  ggplot(aes(x = Iter, y = value, color = topic)) + 
+    geom_line() + 
+    labs(title = "Variational Bayes for LDA (1)", 
+         subtitle = expression(xi^theta)) # ラベル
+
+
+## トピック分布のパラメータ
+# トピック番号を指定
+topic_num <- 1
+
+# 作図
+trace_xi_phi_LongDF %>% 
+  filter(topic == topic_num) %>% 
+  ggplot(aes(x = Iter, y = value, color = word)) + 
+    geom_line(alpha = 0.5) + 
+    theme(legend.position = "none") + # 凡例
+    labs(title = "Variational Bayes for LDA (1)", 
+        subtitle = expression(xi^phi)) # ラベル
 
 
