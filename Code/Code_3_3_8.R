@@ -26,7 +26,7 @@ alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
 # 潜在トピック集合の分布
-z_dv_k <- array(0, dim = c(M, V, K))
+z_dv_k <- new_z_dv_k <- array(0, dim = c(M, V, K))
 for(d in 1:M) { ## (各文書)
   for(v in 1:V) { ## (各語彙)
     if(n_dv[d, v] > 0) {
@@ -55,9 +55,6 @@ E_n_kv <- apply(tmp_p_n, c(3, 2), sum)
 
 # 周辺化変分ベイズ ----------------------------------------------------------------
 
-# 受け皿
-new_z_dv_k <- array(0, c(M, V, K))
-
 # 推移の確認用
 trace_alpha <- matrix(0, nrow = K, ncol = Iter + 1)
 trace_beta <- matrix(0, nrow = V, ncol = Iter + 1)
@@ -76,29 +73,33 @@ for(I in 1:Iter) { ## (イタレーション)
       if(n_dv[d, v] > 0) {
         
         ## カウントの期待値を更新
-        # q(z)からd,i要素を除いたq(z^{\di})を作成
+        # q(z)からd,i要素を除いたq(z^{\d,i})を作成
         z_dv_k.di <- z_dv_k
         z_dv_k.di[d, v, ] <- 0
+        
+        # n_{d,v}からd,i要素を除いたn_{d,v}^{\d,i}を作成
+        n_dv.di <- n_dv
+        n_dv.di[d, v] <- n_dv.di[d, v] - 1
         
         # 各単語数と掛け合わせる
         tmp_p_n <- array(0, dim = c(M, V, K))
         tmp_q_n <- array(0, dim = c(M, V, K))
         for(k in 1:K) {
-          tmp_p_n[, , k] <- z_dv_k.di[, , k] * n_dv
-          tmp_q_n[, , k] <- (1 - z_dv_k.di[, , k]) * n_dv
+          tmp_p_n[, , k] <- z_dv_k[, , k] * n_dv.di
+          tmp_q_n[, , k] <- z_dv_k[, , k] * (1 - z_dv_k[, , k]) * n_dv.di
         }
         
         # d,i要素を除いたカウントの期待値と分散を計算
         E_n_dk.di <- apply(tmp_p_n, c(1, 3), sum)
-        V_n_dk.di <- apply(tmp_p_n * (1 - tmp_q_n), c(1, 3), sum)
+        V_n_dk.di <- apply(tmp_q_n, c(1, 3), sum)
         E_n_kv.di <- apply(tmp_p_n, c(3, 2), sum)
-        V_n_kv.di <- apply(tmp_p_n * (1 - tmp_q_n), c(3, 2), sum)
+        V_n_kv.di <- apply(tmp_q_n, c(3, 2), sum)
         
         # 潜在トピック集合の分布を計算:式(3.130)
-        term1 <- (E_n_kv.di[, v] + beta_v[v]) / apply(t(E_n_kv.di) + beta_v, 2, sum) * (E_n_dk.di[d, ] + alpha_k)
+        term1  <- (E_n_kv.di[, v] + beta_v[v]) / apply(t(E_n_kv.di) + beta_v, 2, sum) * (E_n_dk.di[d, ] + alpha_k)
         term21 <- V_n_kv.di[, v] / (2 * (E_n_kv.di[, v] + beta_v[v])^2)
         term22 <- V_n_dk.di[d, ] / (2 * (E_n_dk.di[d, ] + alpha_k)^2)
-        term3 <- apply(V_n_kv.di, 1, sum) / (2 * apply(t(E_n_kv.di) + beta_v, 2, sum)^2)
+        term3  <- apply(V_n_kv.di, 1, sum) / (2 * apply(t(E_n_kv.di) + beta_v, 2, sum)^2)
         tmp_q_z <- term1 * exp(- term21 - term22) * exp(term3)
         
         # 値を正規化
@@ -111,13 +112,16 @@ for(I in 1:Iter) { ## (イタレーション)
   # 潜在トピック集合の分布を更新
   z_dv_k <- new_z_dv_k
   
-  # カウントの期待値を更新
+  ## カウントの期待値を更新
   tmp_p_n <- array(0, dim = c(M, V, K))
   for(k in 1:K) {
     tmp_p_n[, , k] <- z_dv_k[, , k] * n_dv
   }
   
+  # 文書ごとにおいて各トピックが割り当てられた単語数
   E_n_dk <- apply(tmp_p_n, c(1, 3), sum)
+  
+  # 全文書において各トピックが割り当てられた単語数
   E_n_kv <- apply(tmp_p_n, c(3, 2), sum)
   
   # 事後分布のパラメータを更新:式(3.191)
@@ -142,8 +146,8 @@ for(I in 1:Iter) { ## (イタレーション)
 }
 
 # 処理の検証用
-sum(E_n_dk) == sum(n_dv)
-sum(E_n_kv) == sum(n_dv)
+sum(apply(E_n_dk, 1, sum) == apply(n_dv, 1, sum)) == M
+sum(as.integer(apply(E_n_kv, 2, sum)) == as.integer(apply(n_dv, 2, sum))) == V
 
 
 # 推定結果の確認 -----------------------------------------------------------------

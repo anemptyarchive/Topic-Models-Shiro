@@ -4,13 +4,13 @@
 # 利用パッケージ
 library(tidyverse)
 
-## 動作検証用
+## 簡易文書データ
 # 文書数
 M <- 10
 # 語彙数
 V <- 20
 # 文書ごとの各語彙数
-n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
+n_dv <- matrix(sample(1:5, M * V, replace = TRUE), M, V)
 n_d <- apply(n_dv, 1, sum)
 
 

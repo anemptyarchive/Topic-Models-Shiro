@@ -195,7 +195,7 @@ trace_beta_LongDF <- pivot_longer(
 )
 
 # 作図
-graph_beta <- ggplot(trace_beta_LongDF, aes(word, value, fill = word)) + 
+graph_beta <- ggplot(trace_beta_LongDF, aes(word, value, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
@@ -222,4 +222,5 @@ ggplot(trace_beta_LongDF, aes(x = as.numeric(S), y = value, color = word)) +
   labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(beta), 
        x = "Iteration") # ラベル
+
 
