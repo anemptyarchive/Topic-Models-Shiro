@@ -15,13 +15,13 @@ n_dv <- matrix(sample(1:10, M * V, replace = TRUE), M, V)
 
 # パラメータの設定 ----------------------------------------------------------------
 
-# イタレーション数
+# イタレーション数を指定
 Iter <- 50
 
-# トピック数
+# トピック数を指定
 K <- 5
 
-# 事前分布のパラメータ
+# 事前分布のパラメータを指定
 alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
@@ -29,9 +29,11 @@ beta_v  <- rep(2, V)
 z_dv_k <- array(0, dim = c(M, V, K))
 for(d in 1:M) {
   for(v in 1:V) {
-    tmp_q_z <- seq(0, 1, by = 0.01) %>% 
-      sample(size = K, replace = TRUE)
-    z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z)
+    if(n_dv[d, v]) {
+      tmp_q_z <- seq(0, 1, by = 0.01) %>% 
+        sample(size = K, replace = TRUE)
+      z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z)
+    }
   }
 }
 
@@ -41,19 +43,15 @@ for(k in 1:K) {
   tmp_n[, , k] <- z_dv_k[, , k] * n_dv
 }
 
-# 文書ごとにおいて各トピックが割り当てられた単語数
-n_dk <- apply(tmp_n, c(1, 3), sum)
+# 文書ごとにおいて各トピックが割り当てられた単語数の期待値の初期値
+E_n_dk <- apply(tmp_n, c(1, 3), sum)
 
-# 全文書において各トピックが割り当てられた単語数
-n_kv <- apply(tmp_n, c(3, 2), sum)
+# 全文書において各トピックが割り当てられた単語数の期待値の初期値
+E_n_kv <- apply(tmp_n, c(3, 2), sum)
 
-# 処理の検証用
-sum(n_dk) == sum(n_dv)
-sum(n_kv) == sum(n_dv)
-
-# 事後分布パラメータの初期値(=事前分布のパラメータ)
-xi_dk <- t(t(n_dk) + alpha_k)
-xi_kv <- t(t(n_kv) + beta_v)
+# 事後分布パラメータの初期値
+xi_dk <- t(t(E_n_dk) + alpha_k)
+xi_kv <- t(t(E_n_kv) + beta_v)
 
 
 # 変分ベイズ -------------------------------------------------------------------
@@ -74,28 +72,32 @@ for(I in 1:Iter) { ## (試行回数)
     term2_k  <- digamma(xi_dk[d, ]) - digamma(apply(xi_dk, 2, sum))
     tmp_z_kv <- exp(term1_kv) * exp(term2_k)
     # 正規化
-    z_dv_k[d, , ] <- t(tmp_z_kv) / apply(tmp_z_kv, 1, sum)
+    z_dv_k[d, , ] <- t(tmp_z_kv) / apply(tmp_z_kv, 2, sum)
     
     # カウントの期待値
     for(k in 1:K) {
       tmp_n[, , k] <- z_dv_k[, , k] * n_dv
     }
-    n_dk <- apply(tmp_n, c(1, 3), sum)
-    n_kv <- apply(tmp_n, c(3, 2), sum)
+    E_n_dk <- apply(tmp_n, c(1, 3), sum)
+    E_n_kv <- apply(tmp_n, c(3, 2), sum)
     
     # 事後分布のパラメータを計算:式(3.89)
-    xi_dk[d, ] <- n_dk[d, ] + alpha_k
+    xi_dk[d, ] <- E_n_dk[d, ] + alpha_k
     
   } ## (/各文書)
   
   # 事後分布のパラメータ:式(3.95)
-  xi_kv <- t(t(n_kv) + beta_v)
+  xi_kv <- t(t(E_n_kv) + beta_v)
   
   # 推移の確認用
   trace_xi_theta[, , I + 1] <- xi_dk
   trace_xi_phi[, , I + 1]   <- xi_kv
   
 }
+
+# 処理の検証用
+sum(E_n_dk) == sum(n_dv)
+sum(E_n_kv) == sum(n_dv)
 
 
 # 推定結果の確認 ----------------------------------------------------------------------
@@ -209,7 +211,7 @@ graph_xi_theta <- ggplot(trace_xi_theta_LongDF, aes(x = topic, y = value, fill =
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
   transition_manual(Iter) + 
-  labs(title = "Variational Bayes for LDA (1):xi^theta_dk", 
+  labs(title = "Variational Bayes for LDA (1)", 
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
@@ -224,7 +226,7 @@ graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(x = word, y = value, fill = word
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
   transition_manual(Iter) + 
-  labs(title = "Variational Bayes for LDA (1):xi^phi_kv", 
+  labs(title = "Variational Bayes for LDA (1)", 
        subtitle = "Iter={current_frame}") # ラベル
 
 # 描画
