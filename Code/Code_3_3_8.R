@@ -41,15 +41,16 @@ for(d in 1:M) { ## (各文書)
 }
 
 ## カウントの期待値
+tmp_p_n <- array(0, dim = c(M, V, K))
+for(k in 1:K) {
+  tmp_p_n[, , k] <- z_dv_k[, , k] * n_dv
+}
+
 # 文書ごとにおいて各トピックが割り当てられた単語数
-E_n_dk <- apply(z_dv_k, c(1, 3), sum)
+E_n_dk <- apply(tmp_p_n, c(1, 3), sum)
 
 # 全文書において各トピックが割り当てられた単語数
-E_n_kv <- apply(z_dv_k, c(3, 2), sum)
-
-# 処理の検証用
-sum(E_n_dk) == sum(n_dv)
-sum(E_n_kv) == sum(n_dv)
+E_n_kv <- apply(tmp_p_n, c(3, 2), sum)
 
 
 # 周辺化変分ベイズ ----------------------------------------------------------------
@@ -74,16 +75,24 @@ for(I in 1:Iter) { ## (イタレーション)
     for(v in 1:V) { ## (各語彙)
       if(n_dv[d, v] > 0) {
         
-        ## カウントを更新
+        ## カウントの期待値を更新
         # q(z)からd,i要素を除いたq(z^{\di})を作成
         z_dv_k.di <- z_dv_k
         z_dv_k.di[d, v, ] <- 0
         
+        # 各単語数と掛け合わせる
+        tmp_p_n <- array(0, dim = c(M, V, K))
+        tmp_q_n <- array(0, dim = c(M, V, K))
+        for(k in 1:K) {
+          tmp_p_n[, , k] <- z_dv_k.di[, , k] * n_dv
+          tmp_q_n[, , k] <- (1 - z_dv_k.di[, , k]) * n_dv
+        }
+        
         # d,i要素を除いたカウントの期待値と分散を計算
-        E_n_dk.di <- apply(z_dv_k.di, c(1, 3), sum)
-        V_n_dk.di <- apply(z_dv_k.di * (1 - z_dv_k.di), c(1, 3), sum)
-        E_n_kv.di <- apply(z_dv_k.di, c(3, 2), sum)
-        V_n_kv.di <- apply(z_dv_k.di * (1 - z_dv_k.di), c(3, 2), sum)
+        E_n_dk.di <- apply(tmp_p_n, c(1, 3), sum)
+        V_n_dk.di <- apply(tmp_p_n * (1 - tmp_q_n), c(1, 3), sum)
+        E_n_kv.di <- apply(tmp_p_n, c(3, 2), sum)
+        V_n_kv.di <- apply(tmp_p_n * (1 - tmp_q_n), c(3, 2), sum)
         
         # 潜在トピック集合の分布を計算:式(3.130)
         term1 <- (E_n_kv.di[, v] + beta_v[v]) / apply(t(E_n_kv.di) + beta_v, 2, sum) * (E_n_dk.di[d, ] + alpha_k)
@@ -103,8 +112,13 @@ for(I in 1:Iter) { ## (イタレーション)
   z_dv_k <- new_z_dv_k
   
   # カウントの期待値を更新
-  E_n_dk <- apply(z_dv_k, c(1, 3), sum)
-  E_n_kv <- apply(z_dv_k, c(3, 2), sum)
+  tmp_p_n <- array(0, dim = c(M, V, K))
+  for(k in 1:K) {
+    tmp_p_n[, , k] <- z_dv_k[, , k] * n_dv
+  }
+  
+  E_n_dk <- apply(tmp_p_n, c(1, 3), sum)
+  E_n_kv <- apply(tmp_p_n, c(3, 2), sum)
   
   # 事後分布のパラメータを更新:式(3.191)
   alpha_numer <- apply(digamma(t(E_n_dk) + alpha_k) - digamma(alpha_k), 1, sum)
@@ -126,6 +140,10 @@ for(I in 1:Iter) { ## (イタレーション)
     round(Sys.time() - start_time)
   ))
 }
+
+# 処理の検証用
+sum(E_n_dk) == sum(n_dv)
+sum(E_n_kv) == sum(n_dv)
 
 
 # 推定結果の確認 -----------------------------------------------------------------
