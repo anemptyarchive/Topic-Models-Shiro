@@ -49,8 +49,8 @@ for(k in 1:K) {
 }
 
 # 文書ごとにおいて各トピックが割り当てられた単語数の期待値
-E_n_dk <- apply(tmp_n, 1, sum) / K %>% 
-  matrix(nrow = M, ncol = K)
+E_n_dk <- apply(n_dv, 1, sum) / K %>% 
+          matrix(nrow = M, ncol = K)
 
 # 全文書において各トピックが割り当てられた単語数の期待値
 E_n_kv <- apply(tmp_n, c(3, 2), sum)
@@ -105,8 +105,7 @@ for(OI in 1:OutIter) { ## (イタレーション)
       for(k in 1:K) {
         tmp_n[, , k] <- z_dv_k[, , k] * n_dv
       }
-      E_n_dk <- apply(tmp_n, 1, sum) / K %>% 
-                matrix(nrow = M, ncol = K)
+      E_n_dk <- apply(tmp_n, c(1, 3), sum)
       E_n_kv <- apply(tmp_n, c(3, 2), sum)
 
       # 事後分布のパラメータを計算:式(3.89)
@@ -164,7 +163,7 @@ theta_LongDF <- pivot_longer(
 ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) + # グラフの分割
-  labs(title = "Variational Bayes for LDA (1)", 
+  labs(title = "Variational Bayes for LDA (2)", 
        subtitle = expression(Theta)) # ラベル
 
 
@@ -194,7 +193,7 @@ ggplot(phi_LongDF, aes(x = word, y = prob, fill = word, color = word)) +
   facet_wrap( ~ topic, labeller = label_both) + # グラフの分割
   scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
-  labs(title = "Variational Bayes for LDA (1)", 
+  labs(title = "Variational Bayes for LDA (2)", 
        subtitle = expression(Phi)) # ラベル
 
 
@@ -248,7 +247,7 @@ graph_xi_theta <- ggplot(trace_xi_theta_LongDF, aes(x = topic, y = value, fill =
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
   transition_manual(Iter) + 
-  labs(title = "Variational Bayes for LDA (1)", 
+  labs(title = "Variational Bayes for LDA (2)", 
        subtitle = "Iter={current_frame}", 
        y = expression(Eta[dk]^theta)) # ラベル
 
@@ -264,11 +263,39 @@ graph_xi_phi <- ggplot(trace_xi_phi_LongDF, aes(x = word, y = value, fill = word
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
   transition_manual(Iter) + 
-  labs(title = "Variational Bayes for LDA (1)", 
+  labs(title = "Variational Bayes for LDA (2)", 
        subtitle = "Iter={current_frame}", 
        y = expression(xi[kv]^phi)) # ラベル
 
 # 描画
 animate(graph_xi_phi, nframes = (OutIter + 1), fps = 10)
+
+
+### 折れ線グラフ
+## トピック分布のパラメータ
+# 文書番号を指定
+doc_num <- 10
+
+# 作図
+trace_xi_theta_LongDF %>% 
+  filter(doc == doc_num) %>% 
+  ggplot(aes(x = Iter, y = value, color = topic)) + 
+    geom_line() + 
+    labs(title = "Variational Bayes for LDA (2)", 
+         subtitle = expression(xi^theta)) # ラベル
+
+
+## トピック分布のパラメータ
+# トピック番号を指定
+topic_num <- 1
+
+# 作図
+trace_xi_phi_LongDF %>% 
+  filter(topic == topic_num) %>% 
+  ggplot(aes(x = Iter, y = value, color = word)) + 
+    geom_line(alpha = 0.5) + 
+    theme(legend.position = "none") + # 凡例
+    labs(title = "Variational Bayes for LDA (2)", 
+         subtitle = expression(xi^phi)) # ラベル
 
 
