@@ -4,6 +4,14 @@
 # 利用パッケージ
 library(tidyverse)
 
+## 簡易文書データ
+# 文書数
+M <- 10
+# 語彙数
+V <- 20
+# 文書ごとの各語彙数
+n_dv <- matrix(sample(1:5, M * V, replace = TRUE), M, V)
+
 
 # パラメータの設定 ----------------------------------------------------------------
 
@@ -52,17 +60,12 @@ sum(E_n_kv) == sum(n_dv)
 # 受け皿
 new_z_di_k <- array(0, c(M, V, max(n_dv), K))
 
-# 推移の確認用データフレームを作成
-trace_alpha <- tibble(
-  value = alpha_k, 
-  topic = as.factor(1:K),  # トピック番号
-  Iter = 0 # 試行回数
-)
-trace_beta <- tibble(
-  value = beta_v, 
-  word = as.factor(1:V),  # 語彙番号
-  Iter = 0 # 試行回数
-)
+# 推移の確認用
+trace_alpha <- matrix(0, nrow = K, ncol = Iter + 1)
+trace_beta <- matrix(0, nrow = V, ncol = Iter + 1)
+# 初期値を代入
+trace_alpha[, 1] <- alpha_k
+trace_beta[, 1] <- beta_v
 
 for(I in 1:Iter) { ## (イタレーション)
   
@@ -118,21 +121,9 @@ for(I in 1:Iter) { ## (イタレーション)
   beta_denom <- sum(digamma(apply(t(E_n_kv) + beta_v, 2, sum)) - digamma(sum(beta_v)))
   beta_v <- beta_v * beta_numer / beta_denom
   
-  # 推移の確認用データフレームを作成
-  tmp_trace_alpha <- tibble(
-    value = alpha_k, 
-    topic = as.factor(1:K),  # トピック番号
-    Iter = I # 試行回数
-  )
-  tmp_trace_beta <- tibble(
-    value = beta_v, 
-    word = as.factor(1:V),  # 語彙番号
-    Iter = I # 試行回数
-  )
-  
-  # データフレームを結合
-  trace_alpha <- rbind(trace_alpha, tmp_trace_alpha)
-  trace_beta  <- rbind(trace_beta, tmp_trace_beta)
+  # 推移の確認用
+  trace_alpha[, I + 1] <- alpha_k
+  trace_beta[, I + 1] <- beta_v
   
   # 動作確認
   print(paste0(
@@ -186,9 +177,32 @@ ggplot(phi_df, aes(x = word, y = prob, fill = word, color = word)) +
 library(gganimate)
 
 
+# データフレームに変換
+trace_alpha_df <- data.frame()
+trace_beta_df <- data.frame()
+for(I in 1:(Iter + 1)) {
+  
+  # データフレームを作成
+  tmp_trace_alpha <- data.frame(
+    value = trace_alpha[, I], 
+    topic = as.factor(1:K),  # トピック番号
+    Iter = I - 1 # 試行回数
+  )
+  tmp_trace_beta <- data.frame(
+    value = trace_beta[, I], 
+    word = as.factor(1:V),  # 語彙番号
+    Iter = I - 1 # 試行回数
+  )
+  
+  # データフレームを結合
+  trace_alpha_df <- rbind(trace_alpha_df, tmp_trace_alpha)
+  trace_beta_df  <- rbind(trace_beta_df, tmp_trace_beta)
+}
+
+
 ## トピック分布
 # 作図
-graph_alpha <- ggplot(trace_alpha, aes(topic, value, fill = topic)) + 
+graph_alpha <- ggplot(trace_alpha_df, aes(topic, value, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   transition_manual(Iter) + # フレーム
   labs(title = "Collapsed Variational Bayes Method for LDA", 
@@ -200,7 +214,7 @@ animate(graph_alpha, nframes = (Iter + 1), fps = 10)
 
 ## 単語分布
 # 作図
-graph_beta <- ggplot(trace_beta, aes(word, value, fill = word, color = word)) + 
+graph_beta <- ggplot(trace_beta_df, aes(word, value, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
@@ -210,5 +224,21 @@ graph_beta <- ggplot(trace_beta, aes(word, value, fill = word, color = word)) +
 
 # 描画
 animate(graph_beta, nframes = (Iter + 1), fps = 10)
+
+
+### 折れ線グラフ
+## トピック分布のパラメータ
+ggplot(trace_alpha_df, aes(x = Iter, y = value, color = topic)) + 
+  geom_line() + # 折れ線グラフ
+  labs(title = "Collapsed Variational Bayes Method for LDA", 
+       subtitle = expression(alpha)) # ラベル
+
+
+## 単語分布のパラメータ
+ggplot(trace_beta_df, aes(x = Iter, y = value, color = word)) + 
+  geom_line(alpha = 0.5) + # 
+  theme(legend.position = "none") + 
+  labs(title = "Collapsed Variational Bayes Method for LDA", 
+       subtitle = expression(beta)) # ラベル
 
 
