@@ -73,10 +73,6 @@ for(I in 1:Iter) { ## (イタレーション)
       if(n_dv[d, v] > 0) {
         
         ## カウントの期待値を更新
-        # q(z)からd,i要素を除いたq(z^{\d,i})を作成
-        z_dv_k.di <- z_dv_k
-        z_dv_k.di[d, v, ] <- 0
-        
         # n_{d,v}からd,i要素を除いたn_{d,v}^{\d,i}を作成
         n_dv.di <- n_dv
         n_dv.di[d, v] <- n_dv.di[d, v] - 1
@@ -148,6 +144,8 @@ for(I in 1:Iter) { ## (イタレーション)
 # 処理の検証用
 sum(apply(E_n_dk, 1, sum) == apply(n_dv, 1, sum)) == M
 sum(as.integer(apply(E_n_kv, 2, sum)) == as.integer(apply(n_dv, 2, sum))) == V
+apply(E_n_dk.di, 1, sum) == apply(n_dv, 1, sum)
+as.integer(apply(E_n_kv.di, 2, sum)) == as.integer(apply(n_dv, 2, sum))
 
 
 # 推定結果の確認 -----------------------------------------------------------------
@@ -259,3 +257,29 @@ ggplot(trace_beta_df, aes(x = Iter, y = value, color = word)) +
        subtitle = expression(beta)) # ラベル
 
 
+
+# try ---------------------------------------------------------------------
+
+z_df <- data.frame()
+for(k in 1:K) {
+  tmp_z_df <- cbind(
+    as.data.frame(z_dv_k[, , k]), 
+    doc = as.factor(1:M), 
+    topic = as.factor(k)
+  )
+  z_df <- rbind(z_df, tmp_z_df)
+}
+z_df_long <- pivot_longer(
+  z_df, 
+  cols = -c(doc, topic), 
+  names_to = "word", 
+  names_prefix = "V", 
+  names_ptypes = list(word = factor()), 
+  values_to = "prob"
+)
+z_df_long %>% 
+  filter(doc %in% as.factor(1:5)) %>% 
+  filter(word %in% as.factor(1:5)) %>% 
+  ggplot(aes(x = topic, y = prob, fill = topic)) + 
+    geom_bar(stat = "identity", position = "dodge") + 
+    facet_wrap(doc ~ word, labeller = label_both)
