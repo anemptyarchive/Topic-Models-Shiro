@@ -24,7 +24,7 @@ S <- 1000
 InIter <- 25
 
 # ステップサイズを指定
-nu <- 1
+nu <- 0.1
 
 # トピック数を指定
 K <- 5
@@ -56,7 +56,7 @@ for(d in 1:M) {
 }
 
 # カウントの期待値用受け皿
-tmp_n <- array(0, dim = c(M, V, K))
+tmp_n_vk <- matrix(0, nrow = V, ncol = K)
 
 # 文書dの語彙vにおいてトピックkが割り当てられた単語数の期待値の受け皿
 E_n_dkv <- array(0, dim = c(M, K, V))
@@ -96,10 +96,10 @@ for(s in 1:S) { ## (サンプリング)
     } ## (/各語彙)
     
     ## カウントの期待値
-    tmp_n[d, , ] <- z_dv_k[d, , ] * n_dv[d, ]
+    tmp_n_vk <- z_dv_k[d, , ] * n_dv[d, ]
     
     # 文書dにおいてトピックkが割り当てられた単語数の期待値を計算
-    E_n_dk <- apply(tmp_n[d, , ], 2, sum) ## (ベクトルで扱うことに注意)
+    E_n_dk <- apply(tmp_n_vk, 2, sum) ## (ベクトルで扱うことに注意)
     
     # トピック分布の近似事後分布のパラメータを計算:式(3.89)
     xi_dk.theta[d, ] <- E_n_dk + alpha_k
@@ -109,15 +109,12 @@ for(s in 1:S) { ## (サンプリング)
   for(k in 1:K) { ## (各トピック)
     
     # 文書dの語彙vにおいてトピックkが割り当てられた単語数の期待値を計算
-    E_n_dkv[d, k, ] <- tmp_n[d, , k]
+    E_n_dkv[d, k, ] <- tmp_n_vk[, k]
     
     # 単語分布の近似事後分布のパラメータを計算:式(3.159)
     xi_kv_s.phi[k, ] <- xi_kv_s.phi[k, ] + nu * (M * E_n_dkv[d, k, ] + beta_v - xi_kv_s.phi[k, ])
     
   } ## (/各トピック)
-  
-  # 
-  xi_kv.phi <- xi_kv.phi + xi_kv_s.phi
   
   # 推移の確認用配列に代入
   trace_xi_theta[, , s + 1] <- xi_dk.theta
@@ -127,9 +124,6 @@ for(s in 1:S) { ## (サンプリング)
   print(paste0("s=", s, "(", round(s / S * 100, 1), "%)", "...", round(Sys.time() - start_time, 2)))
 
 } ## (/サンプリング)
-
-# 
-xi_kv.phi <- xi_kv.phi / S
 
 
 # 推定結果の確認 -----------------------------------------------------------------
@@ -164,7 +158,7 @@ ggplot(theta_LongDF, aes(x = topic, y = prob, fill = topic)) +
 
 ## 単語分布(期待値)
 # phiの期待値を計算:式(2.10)
-phi_kv <- xi_kv.phi / apply(xi_kv.phi, 1, sum)
+phi_kv <- xi_kv_s.phi / apply(xi_kv_s.phi, 1, sum)
 
 # 作図用のデータフレームを作成
 phi_WideDF <- cbind(
@@ -270,7 +264,7 @@ animate(graph_xi_phi, nframes = S + 1, fps = 20)
 ### 折れ線グラフで可視化
 ## トピック分布のパラメータ
 # 文書番号を指定
-doc_num <- 1
+doc_num <- 10
 
 # 作図
 trace_xi_theta_LongDF %>% 

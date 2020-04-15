@@ -18,7 +18,7 @@ PoS_1 <- "名詞|^動詞|形容詞"
 PoS_2 <- "一般|^自立"
 
 # 最低出現頻度を指定
-Freq <- 5
+Freq <- 3
 
 # 抽出しない単語を指定
 stop_words <- "[a-zA-Z]"
@@ -32,6 +32,7 @@ n_dv <- res_mecab %>%
   select(-c(TERM, POS1, POS2)) %>%      # 数値列のみを残す
   filter(apply(., 1, sum) >= Freq) %>%  # 指定した頻度以上の語彙を取り出す
   t()                                   # 転置
+rownames(n_dv) <- NULL
 
 # 各文書の単語数
 n_d <- apply(n_dv, 1, sum) # 行方向に和をとる
