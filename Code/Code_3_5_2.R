@@ -24,16 +24,14 @@ alpha_k <- rep(2, K)
 beta_v <- rep(2, V)
 
 # 潜在トピック集合の事後分布
-z_di_k <- array(0, dim = c(M, V, max(n_dv), K))
+z_dv_k <- array(0, dim = c(M, V, K))
 for(d in 1:M) {
   for(v in 1:V) {
     if(n_dv[d, v] > 0) {
-      for(n in 1:n_dv[d, v]) {
-        # ランダムに値を生成
-        tmp_q_z <- sample(seq(0, 1, by = 0.01), size = K, replace = TRUE)
-        # 正規化
-        z_di_k[d, v, n, ] <- tmp_q_z / sum(tmp_q_z)
-      }
+      # ランダムに値を生成
+      tmp_q_z <- sample(seq(0, 1, by = 0.01), size = K, replace = TRUE)
+      # 正規化
+      z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z)
     }
   }
 }
@@ -44,14 +42,17 @@ z_di_s <- array(0, dim = c(M, V, max(n_dv), S))
 # 重みの受け皿
 w_z_di_s <- array(1/S, dim = c(M, V, max(n_dv), S))
 
-# 割り当てられたトピックに関する単語数の初期値
-n_dk_s <- array(0, dim = c(M, K, S))
-n_kv_s <- array(0, dim = c(K, V, S))
+# 割り当てられたトピックに関する単語数の受け皿
+n_dk <- rep(0, K)
+n_kv <- matrix(0, nrow = K, ncol = V)
 
 
 # パーティクルフィルタ --------------------------------------------------------------
 
 for(d in 1:M) { ## (各文書)
+  
+  # 動作確認用
+  start_time <- Sys.time()
   
   # 1期(語)前の値i-1を初期化
   old_v <- old_n <- 1 # (本当は0)
@@ -62,29 +63,37 @@ for(d in 1:M) { ## (各文書)
         
         for(s in 1:S) { ## (サンプリング)
           
+          # カウントを計算
+          for(k in 1:K) {
+            n_dk[k] <- sum(z_di_s[1:d, 1:old_v, 1:old_n, s] == k)
+            # d=1のときに配列の構造が変わる対策(仮)
+            for(cd in 1:d) {
+              for(cv in 1:old_v) {
+                for(cn in 1:n_dv[d, old_v]){
+                  tmp_count <- sum(z_di_s[cd, cv, cn, s] == k)
+                }
+              }
+            }
+            n_kv[k, v] <- tmp_count
+          }
+          
           # 潜在トピック集合の分布を計算:式(3.172)
-          term1 <- (n_kv_s[, v, s] + beta_v[v]) / apply(t(n_kv_s[, , s]) + beta_v, 2, sum)
-          term2 <- (n_dk_s[d, , s] + alpha_k) / sum(n_dk_s[d, , s] + alpha_k)
+          term1 <- (n_kv[, v] + beta_v[v]) / apply(t(n_kv) + beta_v, 2, sum)
+          term2 <- (n_dk + alpha_k) / sum(n_dk + alpha_k)
           tmp_q_z <- term1 * term2
-          z_di_k[d, v, n, ] <- tmp_q_z / sum(tmp_q_z) # 正規化
+          z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z) # 正規化
           
           # 潜在トピックをサンプリング
-          z_di_s[d, v, n, s] <- sample(1:K, size = 1, prob = z_di_k[d, v, n, ])
+          z_di_s[d, v, n, s] <- sample(1:K, size = 1, prob = z_dv_k[d, v, ])
           
           ## 重みを計算:式(3.175)
           # 式(3.176)の計算
-          term1 <- (n_kv_s[, v, s] + beta_v[v]) / apply(t(n_kv_s[, , s]) + beta_v, 2, sum)
-          term2 <- (n_dk_s[d, , s] + alpha_k) / sum(n_dk_s[d, , s] + alpha_k)
+          term1 <- (n_kv[, v] + beta_v[v]) / apply(t(n_kv) + beta_v, 2, sum)
+          term2 <- (n_dk + alpha_k) / sum(n_dk + alpha_k)
           p_wz_s <- term1 * term2
           
           # 重みを計算:式(3.175)
           w_z_di_s[d, v, n, s] <- w_z_di_s[d, old_v, old_n, s] * sum(p_wz_s)
-          
-          # 割り当てられた潜在トピックに応じてカウントに加算
-          tmp_n_k <- rep(0, K) # 初期化
-          tmp_n_k[z_di_s[d, v, n, s]] <- 1 # k(=z_di)番目に1を代入
-          n_dk_s[d, , s] <- n_dk_s[d, , s] + tmp_n_k
-          n_kv_s[, v, s] <- n_kv_s[, v, s] + tmp_n_k
           
         } ## (/サンプリング)
         
@@ -98,39 +107,40 @@ for(d in 1:M) { ## (各文書)
           
           for(r in 1:R) { ## (活性化サンプル)
             
-            # 活性化する重みをサンプリング
-            l <- sample(1:M, size = 1)
-            m_v <- sample(1:V, size = 1, prob = n_dv[l, ])
+            # 活性化する重みをサンプリング(仮)
+            l <- sample(1:d, size = 1)
+            m_v <- sample(1:v, size = 1, prob = n_dv[l, ])
             m_n <- sample(1:n_dv[l, m_v], size = 1)
             
             for(s in 1:S) { ## (リサンプリング)
               
               # カウントを初期化
-              n_dk.lm_s <- rep(0, K)
-              n_kv.lm_s <- matrix(0, nrow = K, ncol = V)
-              
-              # l(d)=1のときに配列の構造が変わる対策(仮)
-              if(l == 1) {
-                mar <- 1
-              } else if(l > 1) {
-                mar <- 2
-              }
+              n_dk.lm <- rep(0, K)
+              n_kv.lm <- matrix(0, nrow = K, ncol = V)
               
               # 潜在トピックに関するカウントを計算
               for(k in 1:K) {
-                n_dk.lm_s[k] <- sum(z_di_s[1:l, 1:m_v, 1:m_n, s] == k)
-                n_kv.lm_s[k, ] <- apply(z_di_s[1:l, , , s] == k, mar, sum)
+                n_dk.lm[k] <- sum(z_di_s[1:l, 1:m_v, 1:m_n, s] == k)
+                # l(d)=1のときに配列の構造が変わる対策(仮)
+                for(cd in 1:l) {
+                  for(cv in 1:m_v) {
+                    for(cn in 1:m_n){
+                      tmp_count <- sum(z_di_s[cd, cv, cn, s] == k)
+                    }
+                  }
+                }
+                tmp_countn_kv.lm[k, v] <- tmp_count
               }
               
               # l,m要素について取り除く(iをvとnに分けているためi-1の処理がめんどいため)
               tmp_n_k <- rep(0, K) # 初期化
               tmp_n_k[z_di_s[l, m_v, m_n, s]] <- 1 # k番目に1を代入
-              n_dk.lm_s <- n_dk.lm_s - tmp_n_k
-              n_kv.lm_s <- n_kv.lm_s - tmp_n_k
+              n_dk.lm <- n_dk.lm - tmp_n_k
+              n_kv.lm <- n_kv.lm - tmp_n_k
               
               # リサンプリング確率を計算:式(3.179)
-              term1 <- (n_kv.lm_s[, m_v] + beta_v[m_v]) / apply(t(n_kv.lm_s) + beta_v, 2, sum)
-              term2 <- (n_dk.lm_s + alpha_k) / sum(n_dk.lm_s + alpha_k)
+              term1 <- (n_kv.lm[, m_v] + beta_v[m_v]) / apply(t(n_kv.lm) + beta_v, 2, sum)
+              term2 <- (n_dk.lm + alpha_k) / sum(n_dk.lm + alpha_k)
               tmp_q_z <- term1 * term2
               
               # 潜在トピックをサンプリング
@@ -141,6 +151,9 @@ for(d in 1:M) { ## (各文書)
           
           # 重みを初期化
           w_z_di_s <- array(1 / S, dim = c(M, V, max(n_dv), S))
+          
+          # 動作確認
+          print(paste0("d=", d, ", v=", v, " : Resampling..."))
         }
         
         # 1期(語)前の添字を保存
@@ -150,11 +163,42 @@ for(d in 1:M) { ## (各文書)
       } ## (/各単語)
     }
   } ## (/各語彙)
+  
+  # 動作確認
+  print(paste0("d=", d, "(", round(d / M * 100, 1), "%)...", round(Sys.time() - start_time, 2)))
+
 } ## (/各文書)
 
 warnings()
 
 # 推定結果の確認 -----------------------------------------------------------------
+
+df_n_dv_wide <- cbind(
+  as_tibble(n_dv), 
+  doc = 1:M
+)
+df_n_dv_long <- pivot_longer(
+  df_n_dv_wide, 
+  cols = -doc, 
+  names_to = "word", 
+  names_prefix = "V", 
+  names_ptypes = list(word = numeric()), 
+  values_to = "freq"
+)
+df_n_dv <- tibble()
+for(i in 1:nrow(df_n_dv_long)) {
+  tmp_df <- tibble(
+    doc = df_n_dv_long[["doc"]][i], 
+    word = df_n_dv_long[["word"]][i], 
+    freq = rep(1, df_n_dv_long[["freq"]][i]), 
+    topic = as.factor(z_di_s[df_n_dv_long[["doc"]][i], df_n_dv_long[["word"]][i], 1:df_n_dv_long[["freq"]][i], S])
+  )
+  df_n_dv <- rbind(df_n_dv, tmp_df)
+}
+
+ggplot(df_n_dv, aes(x = word, y = doc, color = topic)) + 
+  geom_point(position = "jitter")
+
 
 w_z_di_k <- array(0, dim = c(M, V, max(n_dv), K))
 for(d in 1:M) {
