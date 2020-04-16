@@ -20,11 +20,11 @@ n_d <- apply(n_dv, 1, sum)
 # サンプリング数を指定
 S <- 1000
 
-# 試行回数を指定
+# イタレーション数を指定
 InIter <- 25
 
-# ステップサイズを指定
-nu <- 0.1
+# ステップサイズ(学習率)を指定
+nu <- 0.01
 
 # トピック数を指定
 K <- 5
@@ -33,7 +33,7 @@ K <- 5
 alpha_k <- rep(2, K)
 beta_v <- rep(2, V)
 
-# 事後分布のパラメータの初期値
+# 事後分布のパラメータ
 xi_dk.theta <- xi_dk.theta <- rep(n_d / K, K) + rep(alpha_k, each = M) %>% # E_n_dk + alpha_dk
   matrix(nrow = M, ncol = K)
 xi_kv_s.phi <- xi_kv.phi <- seq(1, 5) %>% # とり得る値の範囲を指定
@@ -55,7 +55,7 @@ for(d in 1:M) {
   }
 }
 
-# カウントの期待値用受け皿
+# カウントの期待値計算用の受け皿
 tmp_n_vk <- matrix(0, nrow = V, ncol = K)
 
 # 文書dの語彙vにおいてトピックkが割り当てられた単語数の期待値の受け皿
@@ -95,10 +95,8 @@ for(s in 1:S) { ## (サンプリング)
       }
     } ## (/各語彙)
     
-    ## カウントの期待値
-    tmp_n_vk <- z_dv_k[d, , ] * n_dv[d, ]
-    
     # 文書dにおいてトピックkが割り当てられた単語数の期待値を計算
+    tmp_n_vk <- z_dv_k[d, , ] * n_dv[d, ]
     E_n_dk <- apply(tmp_n_vk, 2, sum) ## (ベクトルで扱うことに注意)
     
     # トピック分布の近似事後分布のパラメータを計算:式(3.89)
@@ -116,7 +114,7 @@ for(s in 1:S) { ## (サンプリング)
     
   } ## (/各トピック)
   
-  # 推移の確認用配列に代入
+  # 推移の確認用
   trace_xi_theta[, , s + 1] <- xi_dk.theta
   trace_xi_phi[, , s + 1] <- xi_kv_s.phi
   
