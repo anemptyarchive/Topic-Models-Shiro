@@ -8,10 +8,10 @@ library(tidyverse)
 # パラメータの設定 ----------------------------------------------------------------
 
 # サンプリング数
-S <- 100
+S <- 10
 
 # リサンプリング数
-R <- 30
+R <- 10
 
 # 閾値
 threshold <- 20
@@ -65,16 +65,16 @@ for(d in 1:M) { ## (各文書)
           
           # カウントを計算
           for(k in 1:K) {
-            n_dk[k] <- sum(z_di_s[1:d, 1:old_v, 1:old_n, s] == k)
-            # d=1のときに配列の構造が変わる対策(仮)
-            for(cd in 1:d) {
-              for(cv in 1:old_v) {
-                for(cn in 1:n_dv[d, old_v]){
-                  tmp_count <- sum(z_di_s[cd, cv, cn, s] == k)
-                }
+            n_dk[k] <- sum(z_di_s[d, 1:old_v, 1:old_n, s] == k)
+            # 各添字が1のときに配列の構造が変わる対策(仮)
+            for(cv in 1:old_v) {
+              if(cv < old_v){
+                tmp_count <- sum(z_di_s[1:d, cv, , s] == k)
+              } else if(cv == old_v) {
+                tmp_count <- sum(z_di_s[1:d, cv, 1:old_n, s] == k)
               }
             }
-            n_kv[k, v] <- tmp_count
+            n_kv[k, cv] <- tmp_count
           }
           
           # 潜在トピック集合の分布を計算:式(3.172)
@@ -104,12 +104,22 @@ for(d in 1:M) { ## (各文書)
         ESS <- 1 / sum(w_z_di_s[d, v, n, ] ^ 2)
         
         if(ESS < threshold) {
-          
+          # 動作確認
+          print(paste0("d=", d, ", v=", v, " : Resampling..."))
           for(r in 1:R) { ## (活性化サンプル)
             
             # 活性化する重みをサンプリング(仮)
-            l <- sample(1:d, size = 1)
-            m_v <- sample(1:v, size = 1, prob = n_dv[l, ])
+            #l <- sample(1:d, size = 1)
+            #m_v <- sample(1:v, size = 1, prob = n_dv[l, 1:v])
+            #m_n <- sample(1:n_dv[l, m_v], size = 1)
+            tmp_n_dv <- as.vector(t(n_dv))
+            re_w <- sample(
+              1:((d - 1) * V + v), 
+              size = 1, replace = F, 
+              prob = tmp_n_dv[1:((d - 1) * V + v)]
+            )
+            l <- re_w %/% V + 1
+            m_v <- re_w %% ((l - 1) * V)
             m_n <- sample(1:n_dv[l, m_v], size = 1)
             
             for(s in 1:S) { ## (リサンプリング)
@@ -121,15 +131,15 @@ for(d in 1:M) { ## (各文書)
               # 潜在トピックに関するカウントを計算
               for(k in 1:K) {
                 n_dk.lm[k] <- sum(z_di_s[1:l, 1:m_v, 1:m_n, s] == k)
-                # l(d)=1のときに配列の構造が変わる対策(仮)
-                for(cd in 1:l) {
-                  for(cv in 1:m_v) {
-                    for(cn in 1:m_n){
-                      tmp_count <- sum(z_di_s[cd, cv, cn, s] == k)
-                    }
+                # 各添字が1のときに配列の構造が変わる対策(仮)
+                for(cv in 1:old_v) {
+                  if(cv < old_v){
+                    tmp_count <- sum(z_di_s[1:d, cv, , s] == k)
+                  } else if(cv == old_v) {
+                    tmp_count <- sum(z_di_s[1:d, cv, 1:old_n, s] == k)
                   }
                 }
-                tmp_countn_kv.lm[k, v] <- tmp_count
+                n_kv.lm[k, cv] <- tmp_count
               }
               
               # l,m要素について取り除く(iをvとnに分けているためi-1の処理がめんどいため)
@@ -168,8 +178,6 @@ for(d in 1:M) { ## (各文書)
   print(paste0("d=", d, "(", round(d / M * 100, 1), "%)...", round(Sys.time() - start_time, 2)))
 
 } ## (/各文書)
-
-warnings()
 
 # 推定結果の確認 -----------------------------------------------------------------
 
