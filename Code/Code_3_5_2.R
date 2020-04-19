@@ -8,13 +8,13 @@ library(tidyverse)
 # パラメータの設定 ----------------------------------------------------------------
 
 # サンプリング数
-S <- 10
+S <- 100
 
 # リサンプリング数
 R <- 10
 
 # 閾値
-threshold <- 20
+threshold <- 10
 
 # トピック数
 K <- 5
@@ -104,8 +104,7 @@ for(d in 1:M) { ## (各文書)
         ESS <- 1 / sum(w_z_di_s[d, v, n, ] ^ 2)
         
         if(ESS < threshold) {
-          # 動作確認
-          print(paste0("d=", d, ", v=", v, " : Resampling..."))
+          
           for(r in 1:R) { ## (活性化サンプル)
             
             # 活性化する重みをサンプリング(仮)
@@ -119,7 +118,7 @@ for(d in 1:M) { ## (各文書)
               prob = tmp_n_dv[1:((d - 1) * V + v)]
             )
             l <- re_w %/% V + 1
-            m_v <- re_w %% ((l - 1) * V)
+            m_v <- re_w %% V
             m_n <- sample(1:n_dv[l, m_v], size = 1)
             
             for(s in 1:S) { ## (リサンプリング)
@@ -146,7 +145,7 @@ for(d in 1:M) { ## (各文書)
               tmp_n_k <- rep(0, K) # 初期化
               tmp_n_k[z_di_s[l, m_v, m_n, s]] <- 1 # k番目に1を代入
               n_dk.lm <- n_dk.lm - tmp_n_k
-              n_kv.lm <- n_kv.lm - tmp_n_k
+              n_kv.lm[, m_v] <- n_kv.lm[, m_v] - tmp_n_k
               
               # リサンプリング確率を計算:式(3.179)
               term1 <- (n_kv.lm[, m_v] + beta_v[m_v]) / apply(t(n_kv.lm) + beta_v, 2, sum)
@@ -155,15 +154,15 @@ for(d in 1:M) { ## (各文書)
               
               # 潜在トピックをサンプリング
               z_di_s[l, m_v, m_n, s] <- sample(1:K, size = 1, prob = tmp_q_z)
-            
+                
+              # 重みを初期化
+              w_z_di_s[l, m_v, m_n, ] <- 1 / S
+              
             } ## (/リサンプリング)
           } ## (/活性化サンプル)
           
-          # 重みを初期化
-          w_z_di_s <- array(1 / S, dim = c(M, V, max(n_dv), S))
-          
           # 動作確認
-          print(paste0("d=", d, ", v=", v, " : Resampling..."))
+          print(paste0("d=", d, ", v=", v, "...Resampling"))
         }
         
         # 1期(語)前の添字を保存
@@ -205,7 +204,9 @@ for(i in 1:nrow(df_n_dv_long)) {
 }
 
 ggplot(df_n_dv, aes(x = word, y = doc, color = topic)) + 
-  geom_point(position = "jitter")
+  geom_point(position = "jitter") + 
+  scale_x_continuous(breaks = seq(0, V, by = 5)) + 
+  scale_y_continuous(breaks = seq(1, M))
 
 
 w_z_di_k <- array(0, dim = c(M, V, max(n_dv), K))
