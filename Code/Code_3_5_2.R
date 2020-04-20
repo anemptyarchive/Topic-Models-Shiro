@@ -43,7 +43,6 @@ z_di_s <- array(0, dim = c(M, V, max(n_dv), S))
 w_z_di_s <- array(1/S, dim = c(M, V, max(n_dv), S))
 
 # 割り当てられたトピックに関する単語数の受け皿
-n_dk <- rep(0, K) # (ベクトルで扱うことに注意)
 n_kv <- matrix(0, nrow = K, ncol = V)
 
 
@@ -97,32 +96,32 @@ for(d in 1:M) { ## (各文書)
           
           for(r in 1:R) { ## (活性化サンプル)
             
-            # 活性化する重みをサンプリング(仮)
+            # 活性化する重みをサンプリング(仮):(n_dv[1:(d-1), 1:V(大文字)]とn_dv[d, 1:v(小文字)]だけ取り出したい)
             vec_n_dv <- as.vector(t(n_dv))
             re_w <- sample(
               1:((d - 1) * V + v), 
               size = 1, 
-              prob = vec_n_dv[1:((d - 1) * V + v)] # 出現回数を確率として使用
+              prob = vec_n_dv[1:((d - 1) * V + v)] # 各語彙の出現回数を確率として使用(単語レベルで一様にするため)
             )
             l <- re_w %/% V + 1
-            m_v <- re_w %% V
-            m_n <- sample(1:n_dv[l, m_v], size = 1)
+            mv <- re_w %% V
+            mn <- sample(1:n_dv[l, m_v], size = 1)
             
             for(s in 1:S) { ## (リサンプリング)
               
-              # カウントを初期化
+              # 割り当てられたトピックに関する単語数を初期化
               n_dk.lm <- rep(0, K)
               n_kv.lm <- matrix(0, nrow = K, ncol = V)
               
               # 潜在トピックに関するカウントを計算
               for(k in 1:K) {
-                n_dk.lm[k] <- sum(z_di_s[1:l, 1:m_v, 1:m_n, s] == k)
+                n_dk.lm[k] <- sum(z_di_s[1:d, 1:v, 1:n, s] == k)
                 # 各添字が1のときに配列の構造が変わる対策(仮)
-                for(cv in 1:old_v) {
-                  if(cv < old_v){
+                for(cv in 1:v) {
+                  if(cv < v){
                     tmp_count <- sum(z_di_s[1:d, cv, , s] == k)
-                  } else if(cv == old_v) {
-                    tmp_count <- sum(z_di_s[1:d, cv, 1:old_n, s] == k)
+                  } else if(cv == v) {
+                    tmp_count <- sum(z_di_s[1:d, cv, 1:n, s] == k)
                   }
                 }
                 n_kv.lm[k, cv] <- tmp_count
@@ -130,20 +129,20 @@ for(d in 1:M) { ## (各文書)
               
               # l,m要素について取り除く(iをvとnに分けているためi-1の処理がめんどいため)
               tmp_n_k <- rep(0, K) # 初期化
-              tmp_n_k[z_di_s[l, m_v, m_n, s]] <- 1 # k番目に1を代入
+              tmp_n_k[z_di_s[l, mv, mn, s]] <- 1 # k番目に1を代入
               n_dk.lm <- n_dk.lm - tmp_n_k
-              n_kv.lm[, m_v] <- n_kv.lm[, m_v] - tmp_n_k
+              n_kv.lm[, mv] <- n_kv.lm[, mv] - tmp_n_k
               
               # リサンプリング確率を計算:式(3.179)
-              term1 <- (n_kv.lm[, m_v] + beta_v[m_v]) / apply(t(n_kv.lm) + beta_v, 2, sum)
+              term1 <- (n_kv.lm[, v] + beta_v[v]) / apply(t(n_kv.lm) + beta_v, 2, sum)
               term2 <- (n_dk.lm + alpha_k) / sum(n_dk.lm + alpha_k)
               tmp_q_z <- term1 * term2
               
               # 潜在トピックをサンプリング
-              z_di_s[l, m_v, m_n, s] <- sample(1:K, size = 1, prob = tmp_q_z)
+              z_di_s[l, mv, mn, s] <- sample(1:K, size = 1, prob = tmp_q_z)
                 
               # 重みを初期化
-              w_z_di_s[l, m_v, m_n, ] <- 1 / S
+              w_z_di_s[l, mv, mn, ] <- 1 / S
               
             } ## (/リサンプリング)
           } ## (/活性化サンプル)
