@@ -7,8 +7,8 @@ library(tidyverse)
 
 # パラメータの設定 ----------------------------------------------------------------
 
-# サンプリング数
-S <- 100
+# サンプリング数(粒子の数)
+S <- 50
 
 # リサンプリング数
 R <- 10
@@ -43,7 +43,7 @@ z_di_s <- array(0, dim = c(M, V, max(n_dv), S))
 w_z_di_s <- array(1/S, dim = c(M, V, max(n_dv), S))
 
 # 割り当てられたトピックに関する単語数の受け皿
-n_dk <- rep(0, K)
+n_dk <- rep(0, K) # (ベクトルで扱うことに注意)
 n_kv <- matrix(0, nrow = K, ncol = V)
 
 
@@ -54,6 +54,9 @@ for(d in 1:M) { ## (各文書)
   # 動作確認用
   start_time <- Sys.time()
   
+  # 文書dにおいて各トピックが割り当て単語数
+  n_dk <- rep(0, K) # (ここではベクトルで扱うことに注意)
+  
   # 1期(語)前の値i-1を初期化
   old_v <- old_n <- 1 # (本当は0)
 
@@ -63,20 +66,6 @@ for(d in 1:M) { ## (各文書)
         
         for(s in 1:S) { ## (サンプリング)
           
-          # カウントを計算
-          for(k in 1:K) {
-            n_dk[k] <- sum(z_di_s[d, 1:old_v, 1:old_n, s] == k)
-            # 各添字が1のときに配列の構造が変わる対策(仮)
-            for(cv in 1:old_v) {
-              if(cv < old_v){
-                tmp_count <- sum(z_di_s[1:d, cv, , s] == k)
-              } else if(cv == old_v) {
-                tmp_count <- sum(z_di_s[1:d, cv, 1:old_n, s] == k)
-              }
-            }
-            n_kv[k, cv] <- tmp_count
-          }
-          
           # 潜在トピック集合の分布を計算:式(3.172)
           term1 <- (n_kv[, v] + beta_v[v]) / apply(t(n_kv) + beta_v, 2, sum)
           term2 <- (n_dk + alpha_k) / sum(n_dk + alpha_k)
@@ -84,16 +73,17 @@ for(d in 1:M) { ## (各文書)
           z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z) # 正規化
           
           # 潜在トピックをサンプリング
-          z_di_s[d, v, n, s] <- sample(1:K, size = 1, prob = z_dv_k[d, v, ])
+          k <- sample(1:K, size = 1, prob = z_dv_k[d, v, ])
+          z_di_s[d, v, n, s] <- k
           
-          ## 重みを計算:式(3.175)
-          # 式(3.176)の計算
+          # 割り当てられたトピックに関する単語数に加算
+          n_dk[k] <- n_dk[k] + 1
+          n_kv[k, v] <- n_kv[k, v] + 1
+          
+          ## 重みを計算:式(3.175),(3.176)
           term1 <- (n_kv[, v] + beta_v[v]) / apply(t(n_kv) + beta_v, 2, sum)
           term2 <- (n_dk + alpha_k) / sum(n_dk + alpha_k)
-          p_wz_s <- term1 * term2
-          
-          # 重みを計算:式(3.175)
-          w_z_di_s[d, v, n, s] <- w_z_di_s[d, old_v, old_n, s] * sum(p_wz_s)
+          w_z_di_s[d, v, n, s] <- w_z_di_s[d, old_v, old_n, s] * sum(term1 * term2)
           
         } ## (/サンプリング)
         
@@ -108,14 +98,11 @@ for(d in 1:M) { ## (各文書)
           for(r in 1:R) { ## (活性化サンプル)
             
             # 活性化する重みをサンプリング(仮)
-            #l <- sample(1:d, size = 1)
-            #m_v <- sample(1:v, size = 1, prob = n_dv[l, 1:v])
-            #m_n <- sample(1:n_dv[l, m_v], size = 1)
-            tmp_n_dv <- as.vector(t(n_dv))
+            vec_n_dv <- as.vector(t(n_dv))
             re_w <- sample(
               1:((d - 1) * V + v), 
-              size = 1, replace = F, 
-              prob = tmp_n_dv[1:((d - 1) * V + v)]
+              size = 1, 
+              prob = vec_n_dv[1:((d - 1) * V + v)] # 出現回数を確率として使用
             )
             l <- re_w %/% V + 1
             m_v <- re_w %% V
@@ -177,6 +164,7 @@ for(d in 1:M) { ## (各文書)
   print(paste0("d=", d, "(", round(d / M * 100, 1), "%)...", round(Sys.time() - start_time, 2)))
 
 } ## (/各文書)
+
 
 # 推定結果の確認 -----------------------------------------------------------------
 
@@ -306,6 +294,22 @@ ggplot(n_kv_LongDF, aes(x = word, y = value, fill = word, color = word)) +
   labs(title = "Particle filter for LDA")
 
 # try ---------------------------------------------------------------------
+
+
+# カウントを計算
+for(k in 1:K) {
+  n_dk[k] <- sum(z_di_s[d, 1:old_v, 1:old_n, s] == k)
+  # 各添字が1のときに配列の構造が変わる対策(仮)
+  for(cv in 1:old_v) {
+    if(cv < old_v){
+      tmp_count <- sum(z_di_s[1:d, cv, , s] == k)
+    } else if(cv == old_v) {
+      tmp_count <- sum(z_di_s[1:d, cv, 1:old_n, s] == k)
+    }
+  }
+  n_kv[k, cv] <- tmp_count
+}
+
 
 z_di_k <- seq(0, 1, by = 0.01) %>% 
   sample(size = M * V * max(n_dv) * S, replace = TRUE) %>% 
