@@ -142,7 +142,7 @@ for(d in 1:M) { ## (各文書)
               z_di_s[l, mv, mn, s] <- sample(1:K, size = 1, prob = tmp_q_z)
                 
               # 重みを初期化
-              w_z_di_s[l, mv, mn, ] <- 1 / S
+              w_z_di_s <- array(1 / S, dim = c(M, V, max(n_dv), S))
               
             } ## (/リサンプリング)
           } ## (/活性化サンプル)
