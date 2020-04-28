@@ -9,8 +9,8 @@ library(tidyverse)
 M <- 10
 # 語彙数
 V <- 20
-# 文書ごとの各語彙数
-n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
+# 各文書における各語彙の出現回数
+n_dv <- matrix(sample(1:10, M * V, replace = TRUE), M, V)
 
 
 # パラメータの設定 -----------------------------------------------------------------
@@ -27,15 +27,15 @@ beta_v  <- rep(2, V)
 
 # トピック分布の初期値
 theta_dk <- seq(0, 1, by = 0.01) %>% 
-            sample(size = M * K, replace = TRUE) %>% 
-            matrix(nrow = M, ncol = K)
+  sample(size = M * K, replace = TRUE) %>% 
+  matrix(nrow = M, ncol = K)
 # 正規化
 theta_dk <- theta_dk / apply(theta_dk, 1, sum)
 
 # 単語分布の初期値
 phi_kv <- seq(0, 1, by = 0.01) %>% 
-          sample(size = K * V, replace = TRUE) %>% 
-          matrix(nrow = K, ncol = V)
+  sample(size = K * V, replace = TRUE) %>% 
+  matrix(nrow = K, ncol = V)
 # 正規化
 phi_kv <- phi_kv / apply(phi_kv, 1, sum)
 
@@ -59,6 +59,9 @@ trace_theta[, , 1] <- theta_dk
 trace_phi[, , 1]   <- phi_kv
 
 for(s in 1:S) { ## (イタレーション)
+  
+  # 動作確認
+  star_time <- Sys.time()
   
   for(d in 1:M) { ## (各文書)
     
@@ -110,6 +113,8 @@ for(s in 1:S) { ## (イタレーション)
   trace_theta[, , s + 1] <- theta_dk
   trace_phi[, , s + 1]   <- phi_kv
   
+  # 動作確認
+  print(paste0(s, "th Sample...", round(Sys.time() - star_time, 3)))
 }
 
 # 処理の検証
@@ -167,32 +172,29 @@ phi_LongDF <- pivot_longer(
 ggplot(phi_LongDF, aes(x = word, y = prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap( ~ topic, labeller = label_both) + # グラフの分割
-  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
+  scale_x_discrete(breaks = seq(0, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
   labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(Phi)) # ラベル
 
 
-# 推移の確認用gif ---------------------------------------------------------------------
+# 推移の確認 -------------------------------------------------------------------
 
-# 利用パッケージ
-library(gganimate)
-
-# データフレームに変換
+# 作図用のデータフレームを作成
 trace_theta_WideDF <- data.frame()
 trace_phi_WideDF <- data.frame()
 for(s in 1:(S + 1)) {
+  # データフレームに変換
   tmp_trace_theta <- cbind(
     as.data.frame(trace_theta[, , s]), 
     doc = as.factor(1:M), # 文書番号
-    S = s - 1 # 試行回数
+    sample = s - 1 # 試行回数
   )
   tmp_trace_phi <- cbind(
     as.data.frame(trace_phi[, , s]), 
     topic = as.factor(1:K), # トピック番号
-    S = s - 1 # 試行回数
+    sample = s - 1 # 試行回数
   )
-  
   # データフレームを結合
   trace_theta_WideDF <- rbind(trace_theta_WideDF, tmp_trace_theta)
   trace_phi_WideDF <- rbind(trace_phi_WideDF, tmp_trace_phi)
@@ -201,7 +203,7 @@ for(s in 1:(S + 1)) {
 # データフレームをlong型に変換
 trace_theta_LongDF <- pivot_longer(
   trace_theta_WideDF, 
-  cols = -c(doc, S),   # 変換せずにそのまま残す現列名
+  cols = -c(doc, sample),   # 変換せずにそのまま残す現列名
   names_to = "topic",  # 現列名を格納する新しい列の名前
   names_prefix = "V",  # 現列名から取り除く文字列
   names_ptypes = list(topic = factor()),  # 現列名を要素とする際の型
@@ -209,7 +211,7 @@ trace_theta_LongDF <- pivot_longer(
 )
 trace_phi_LongDF <- pivot_longer(
   trace_phi_WideDF, 
-  cols = -c(topic, S), # 変換せずにそのまま残す現列名
+  cols = -c(topic, sample), # 変換せずにそのまま残す現列名
   names_to = "word",   # 現列名を格納する新しい列の名前
   names_prefix = "V",  # 現列名から取り除く文字列
   names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
@@ -218,13 +220,47 @@ trace_phi_LongDF <- pivot_longer(
 
 
 ## トピック分布
+# 文書番号を指定
+DocNum <- 10
+
+# 作図
+trace_theta_LongDF %>% 
+  filter(doc == DocNum) %>% 
+  ggplot(aes(x = sample, y = prob, color = topic)) + 
+    geom_line(alpha = 0.5) + 
+    labs(title = "Gibbs sampler for LDA", 
+         subtitle = paste0("d=", DocNum)) # ラベル
+
+
+## 単語分布
+# トピック番号を指定
+TopicNum <- 4
+
+# 
+trace_phi_LongDF %>% 
+  filter(topic == TopicNum) %>% 
+  ggplot(aes(x = sample, y = prob, color = word)) + 
+    geom_line(alpha = 0.5) + 
+    theme(legend.position = "none") + # 凡例
+    labs(title = "Gibbs sampler for LDA", 
+         subtitle = paste0("k=", TopicNum)) # ラベル
+
+
+# 推移の確認用gif ---------------------------------------------------------------------
+
+# 利用パッケージ
+library(gganimate)
+
+
+
+## トピック分布
 # 作図
 graph_theta <- ggplot(trace_theta_LongDF, aes(x = topic, y = prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) +        # グラフの分割
-  transition_manual(S) + 
+  transition_manual(sample) + 
   labs(title = "Gibbs sampler for LDA", 
-       subtitle = "S={current_frame}") # ラベル
+       subtitle = "s={current_frame}") # ラベル
 
 # 描画
 animate(graph_theta, nframes = S + 1, fps = 10)
@@ -235,11 +271,11 @@ animate(graph_theta, nframes = S + 1, fps = 10)
 graph_phi <- ggplot(trace_phi_LongDF, aes(x = word, y = prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   facet_wrap( ~ topic, labeller = label_both) +      # グラフの分割
-  scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
+  scale_x_discrete(breaks = seq(0, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
-  transition_manual(S) + 
+  transition_manual(sample) + 
   labs(title = "Gibbs sampler for LDA", 
-       subtitle = "S={current_frame}") # ラベル
+       subtitle = "s={current_frame}") # ラベル
 
 # 描画
 animate(graph_phi, nframes = S + 1, fps = 10)
