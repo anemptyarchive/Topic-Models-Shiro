@@ -1,5 +1,5 @@
 
-# 3.2.4 Gibbs sampler for LDA ---------------------------------------------------
+# 3.2.4 Gibbs Sampler for LDA ---------------------------------------------------
 
 # 利用パッケージ
 library(tidyverse)
@@ -45,7 +45,7 @@ z_di <- array(0, dim = c(M, V, max(n_dv)))
 # 各文書において各トピックが割り当てられた単語数の初期値
 n_dk <- matrix(0, nrow = M, ncol = K)
 
-# 全文書において各トピックが割り当てられた単語数の初期値
+# 全文書において各トピックが割り当てられた語彙ごとの単語数の初期値
 n_kv <- matrix(0, nrow = K, ncol = V)
 
 
@@ -63,7 +63,7 @@ trace_phi[, , 1]   <- phi_kv
 
 for(s in 1:S) { ## (イタレーション)
   
-  # 動作確認
+  # 動作確認用
   star_time <- Sys.time()
   
   for(d in 1:M) { ## (各文書)
@@ -73,8 +73,8 @@ for(s in 1:S) { ## (イタレーション)
         for(n in 1:n_dv[d, v]) { ## (各単語)
           
           # サンプリング確率を計算：式(3.29)
-          tmp_term <- log(phi_kv[, v]) - log(theta_dk[d, ])
-          q_z_dv_k[d, v, ] <- exp(tmp_term - max(tmp_term)) / sum(exp(tmp_term - max(tmp_term))) # (アンダーフロー対策(仮))
+          tmp_term <- log(phi_kv[, v]) + log(theta_dk[d, ])
+          q_z_dv_k[d, v, ] <- exp(tmp_term - max(tmp_term)) / sum(exp(tmp_term - max(tmp_term))) # (アンダーフロー対策)
           
           # 潜在トピックを割り当て
           res_z <- rmultinom(n = 1, size = 1, prob = q_z_dv_k[d, v, ])
@@ -112,10 +112,6 @@ for(s in 1:S) { ## (イタレーション)
     
   } ## (/各トピック)
   
-  # パラメータを正規化
-  theta_dk <- theta_dk / apply(theta_dk, 1, sum)
-  phi_kv   <- phi_kv / apply(phi_kv, 1, sum)
-  
   # 推移の確認用
   trace_theta[, , s + 1] <- theta_dk
   trace_phi[, , s + 1]   <- phi_kv
@@ -143,18 +139,18 @@ theta_df_wide <- cbind(
 # データフレームをlong型に変換
 theta_df_long <- pivot_longer(
   theta_df_wide, 
-  cols = -doc,         # 変換せずにそのまま残す現列名
-  names_to = "topic",  # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
-  names_ptypes = list(topic = factor()),  # 現列名を要素とする際の型
-  values_to = "prob"   # 現要素を格納する新しい列の名前
+  cols = -doc, # 変換せずにそのまま残す現列名
+  names_to = "topic", # 現列名を格納する新しい列の名前
+  names_prefix = "V", # 現列名から取り除く文字列
+  names_ptypes = list(topic = factor()), # 現列名を要素とする際の型
+  values_to = "prob" # 現要素を格納する新しい列の名前
 )
 
 # 作図
 ggplot(theta_df_long, aes(x = topic, y = prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) + # グラフの分割
-  labs(title = "Gibbs sampler for LDA", 
+  labs(title = "Gibbs Sampler for LDA", 
        subtitle = expression(Theta)) # ラベル
 
 
@@ -168,11 +164,11 @@ phi_df_wide <- cbind(
 # データフレームをlong型に変換
 phi_df_long <- pivot_longer(
   phi_df_wide, 
-  cols = -topic,       # 変換せずにそのまま残す現列名
-  names_to = "word",   # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
-  names_ptypes = list(word = factor()),  # 現列名を要素とする際の型
-  values_to = "prob"   # 現要素を格納する新しい列の名前
+  cols = -topic, # 変換せずにそのまま残す現列名
+  names_to = "word", # 現列名を格納する新しい列の名前
+  names_prefix = "V", # 現列名から取り除く文字列
+  names_ptypes = list(word = factor()), # 現列名を要素とする際の型
+  values_to = "prob" # 現要素を格納する新しい列の名前
 )
 
 # 作図
@@ -181,7 +177,7 @@ ggplot(phi_df_long, aes(x = word, y = prob, fill = word, color = word)) +
   facet_wrap( ~ topic, labeller = label_both) + # グラフの分割
   scale_x_discrete(breaks = seq(0, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
-  labs(title = "Gibbs sampler for LDA", 
+  labs(title = "Gibbs Sampler for LDA", 
        subtitle = expression(Phi)) # ラベル
 
 
@@ -212,14 +208,14 @@ trace_theta_df_long <- pivot_longer(
 )
 
 # 文書番号を指定
-DocNum <- 10
+DocNum <- 5
 
 # 作図
 trace_theta_df_long %>% 
   filter(doc == DocNum) %>% 
   ggplot(aes(x = sample, y = prob, color = topic)) + 
     geom_line(alpha = 0.5) + 
-    labs(title = "Gibbs sampler for LDA", 
+    labs(title = "Gibbs Sampler for LDA", 
          subtitle = paste0("d=", DocNum)) # ラベル
 
 
@@ -254,9 +250,9 @@ TopicNum <- 3
 trace_phi_df_long %>% 
   filter(topic == TopicNum) %>% 
   ggplot(aes(x = sample, y = prob, color = word)) + 
-    geom_line(alpha = 0.5) + 
+    geom_line(alpha = 0.2) + 
     theme(legend.position = "none") + # 凡例
-    labs(title = "Gibbs sampler for LDA", 
+    labs(title = "Gibbs Sampler for LDA", 
          subtitle = paste0("k=", TopicNum)) # ラベル
 
 
@@ -272,7 +268,7 @@ graph_theta <- ggplot(trace_theta_df_long, aes(x = topic, y = prob, fill = topic
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) + # グラフの分割
   transition_manual(sample) + # フレーム
-  labs(title = "Gibbs sampler for LDA", 
+  labs(title = "Gibbs Sampler for LDA", 
        subtitle = "s={current_frame}") # ラベル
 
 # gif画像を作成
@@ -287,7 +283,7 @@ graph_phi <- ggplot(trace_phi_df_long, aes(x = word, y = prob, fill = word, colo
   scale_x_discrete(breaks = seq(0, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
   transition_manual(sample) + # フレーム
-  labs(title = "Gibbs sampler for LDA", 
+  labs(title = "Gibbs Sampler for LDA", 
        subtitle = "s={current_frame}") # ラベル
 
 # gif画像を作成
