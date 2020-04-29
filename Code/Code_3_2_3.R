@@ -51,7 +51,9 @@ n_kv <- matrix(0, nrow = K, ncol = V)
 
 # ギブスサンプリング ----------------------------------------------------------------------
 
-# 潜在トピック集合の分布の受け皿
+# 受け皿を用意
+new_alpha_dk <- matrix(0, nrow = M, ncol = K)
+new_beta_kv <- matrix(0, nrow = K, ncol = V)
 q_z_dv_k <- array(0, dim = c(M, V, K))
 
 # 推移の確認用
@@ -90,10 +92,10 @@ for(s in 1:S) { ## (イタレーション)
     }
     
     # 事後分布のパラメータを更新：式(3.36)の指数部分
-    new_alpha_k <- n_dk[d, ] + alpha_k
+    new_alpha_dk[d, ] <- n_dk[d, ] + alpha_k
     
     # theta_{d,k}をサンプリング
-    theta_dk[d, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_alpha_k) %>% 
+    theta_dk[d, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_alpha_dk[d, ]) %>% 
       as.vector()
     
   } ## (/各文書)
@@ -104,10 +106,11 @@ for(s in 1:S) { ## (イタレーション)
     n_kv[k, ] <- apply(z_di == k, 2, sum)
     
     # 事後分布のパラメータを更新：式(3.37)の指数部分
-    new_beta_v <- n_kv[k, ] + beta_v
+    new_beta_kv[k, ] <- n_kv[k, ] + beta_v
     
     # phi_{k,v}をサンプリング
-    phi_kv[k, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_beta_v) %>% 
+    phi_kv[k, ] <-
+      %>% 
       as.vector()
     
   } ## (/各トピック)

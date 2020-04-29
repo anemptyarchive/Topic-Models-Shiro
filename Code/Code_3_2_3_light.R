@@ -1,5 +1,5 @@
 
-# Gibbs Sampler for LDA ---------------------------------------------------
+# Gibbs sampler for LDA ---------------------------------------------------
 
 # 利用パッケージ
 library(tidyverse)
@@ -93,10 +93,10 @@ for(s in 1:S) { ## (イタレーション)
     }
     
     # 事後分布のパラメータを更新：式(3.36)の指数部分
-    new_alpha_k <- n_dk[d, ] + alpha_k
+    new_alpha_dk <- n_dk[d, ] + alpha_k
     
     # theta_{d,k}をサンプリング
-    theta_dk[d, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_alpha_k) %>% 
+    theta_dk[d, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_alpha_dk) %>% 
       as.vector()
     
   } ## (/各文書)
@@ -107,10 +107,10 @@ for(s in 1:S) { ## (イタレーション)
     n_kv[k, ] <- apply(z_di == k, 2, sum)
     
     # 事後分布のパラメータを更新：式(3.37)の指数部分
-    new_beta_v <- n_kv[k, ] + beta_v
+    new_beta_kv <- n_kv[k, ] + beta_v
     
     # phi_{k,v}をサンプリング
-    phi_kv[k, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_beta_v) %>% 
+    phi_kv[k, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_beta_kv) %>% 
       as.vector()
     
   } ## (/各トピック)
@@ -153,7 +153,7 @@ theta_df_long <- pivot_longer(
 ggplot(theta_df_long, aes(x = topic, y = prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) + # グラフの分割
-  labs(title = "Gibbs Sampler for LDA", 
+  labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(Theta)) # ラベル
 
 
@@ -180,7 +180,7 @@ ggplot(phi_df_long, aes(x = word, y = prob, fill = word, color = word)) +
   facet_wrap( ~ topic, labeller = label_both) + # グラフの分割
   scale_x_discrete(breaks = seq(0, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
-  labs(title = "Gibbs Sampler for LDA", 
+  labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(Phi)) # ラベル
 
 
@@ -218,7 +218,7 @@ trace_theta_df_long %>%
   filter(doc == DocNum) %>% 
   ggplot(aes(x = sample, y = prob, color = topic)) + 
   geom_line(alpha = 0.5) + 
-  labs(title = "Gibbs Sampler for LDA", 
+  labs(title = "Gibbs sampler for LDA", 
        subtitle = paste0("d=", DocNum)) # ラベル
 
 
@@ -255,7 +255,7 @@ trace_phi_df_long %>%
   ggplot(aes(x = sample, y = prob, color = word)) + 
   geom_line(alpha = 0.2) + 
   theme(legend.position = "none") + # 凡例
-  labs(title = "Gibbs Sampler for LDA", 
+  labs(title = "Gibbs sampler for LDA", 
        subtitle = paste0("k=", TopicNum)) # ラベル
 
 
@@ -271,7 +271,7 @@ graph_theta <- ggplot(trace_theta_df_long, aes(x = topic, y = prob, fill = topic
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   facet_wrap( ~ doc, labeller = label_both) + # グラフの分割
   transition_manual(sample) + # フレーム
-  labs(title = "Gibbs Sampler for LDA", 
+  labs(title = "Gibbs sampler for LDA", 
        subtitle = "s={current_frame}") # ラベル
 
 # gif画像を作成
@@ -286,7 +286,7 @@ graph_phi <- ggplot(trace_phi_df_long, aes(x = word, y = prob, fill = word, colo
   scale_x_discrete(breaks = seq(0, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
   transition_manual(sample) + # フレーム
-  labs(title = "Gibbs Sampler for LDA", 
+  labs(title = "Gibbs sampler for LDA", 
        subtitle = "s={current_frame}") # ラベル
 
 # gif画像を作成
