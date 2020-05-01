@@ -109,8 +109,7 @@ for(s in 1:S) { ## (イタレーション)
     new_beta_kv[k, ] <- n_kv[k, ] + beta_v
     
     # phi_{k,v}をサンプリング
-    phi_kv[k, ] <-
-      %>% 
+    phi_kv[k, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_beta_kv[k, ]) %>% 
       as.vector()
     
   } ## (/各トピック)
@@ -203,11 +202,11 @@ for(s in 1:(S + 1)) {
 # データフレームをlong型に変換
 trace_theta_df_long <- pivot_longer(
   trace_theta_df_wide, 
-  cols = -c(doc, sample),   # 変換せずにそのまま残す現列名
-  names_to = "topic",  # 現列名を格納する新しい列の名前
-  names_prefix = "V",  # 現列名から取り除く文字列
+  cols = -c(doc, sample), # 変換せずにそのまま残す現列名
+  names_to = "topic", # 現列名を格納する新しい列の名前
+  names_prefix = "V", # 現列名から取り除く文字列
   names_ptypes = list(topic = factor()),  # 現列名を要素とする際の型
-  values_to = "prob"   # 現要素を格納する新しい列の名前
+  values_to = "prob" # 現要素を格納する新しい列の名前
 )
 
 # 文書番号を指定

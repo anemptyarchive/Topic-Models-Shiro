@@ -10,7 +10,7 @@ M <- 10
 # 語彙数
 V <- 20
 # 文書ごとの各語彙数
-n_dv <- matrix(sample(1:3, M * V, replace = TRUE), M, V)
+n_dv <- matrix(sample(0:10, M * V, replace = TRUE), M, V)
 
 
 # パラメータの設定 -----------------------------------------------------------------
@@ -21,7 +21,7 @@ S <- 1000
 # トピック数
 K <- 5
 
-# 事前分布のパラメータ:(1以上の値)
+# 事前分布のパラメータ:(0より大きい値)
 alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
@@ -55,25 +55,32 @@ for(s in 1:S) { ## (イタレーション)
       if(n_dv[d, v] > 0) {
         for(n in 1:n_dv[d, v]) { ## (各単語)
           
-          # トピック番号を取り出す
-          k <- z_di[d, v, n]
-          
-          # d,i要素のみのカウントを用意
-          count_dk <- matrix(0, nrow = M, ncol = K)
-          count_kv <- matrix(0, nrow = K, ncol = V)
-          count_dk[d, k] <- 1
-          count_kv[k, v] <- 1
-          
-          # d,i要素を除いたカウント
-          n_dk.di <- n_dk - count_dk
-          n_kv.di <- n_kv - count_kv
+          if(z_di[d, v, n] > 0) { ## (初回以外)
+            
+            # トピック番号を取り出す
+            k <- z_di[d, v, n]
+            
+            # d,i要素を除いたカウント
+            n_dk.di <- n_dk
+            n_dk.di[d, k] <- n_dk.di[d, k] - 1
+            n_kv.di <- n_kv
+            n_kv.di[k, v] <- n_kv.di[k, v] - 1
+            
+          } else if(z_di[d, v, n] == 0) { ## (初回)
+            
+            # 初回は全て0
+            n_dk.di <- n_dk
+            n_kv.di <- n_kv
+            
+          }
           
           # サンプリング確率を計算:式(3.38)
-          term_beta_vk <- log(t(n_kv.di) + beta_v)
-          term_alpha_k <- log(n_dk.di[d, ] + alpha_k)
-          term_beta_k <- exp(term_beta_vk[v, ] - apply(term_beta_vk, 2, max)) / apply(exp(term_beta_vk - apply(term_beta_vk, 2, max)), 2, sum) # (アンダーフロー対策)
-          term_alpha_k <- exp(term_alpha_k - max(term_alpha_k)) / sum(exp(term_alpha_k - max(term_alpha_k))) # (アンダーフロー対策)
-          q_z_k <- term_beta_k * term_alpha_k
+          tmp_beta_kv <- log(t(t(n_kv.di) + beta_v))
+          tmp_alpha_k <- log(n_dk.di[d, ] + alpha_k)
+          term_beta_k  <- exp(tmp_beta_kv[, v] - apply(tmp_beta_kv, 1, max)) / apply(exp(tmp_beta_kv - apply(tmp_beta_kv, 1, max)), 1, sum) # (アンダーフロー対策)
+          term_alpha_k <- exp(tmp_alpha_k - max(tmp_alpha_k)) / sum(exp(tmp_alpha_k - max(tmp_alpha_k))) # (アンダーフロー対策)
+          tmp_q_z_k <- term_beta_k * term_alpha_k
+          q_z_k <- tmp_q_z_k / sum(tmp_q_z_k) # 正規化
           
           # 潜在トピックを割り当て
           res_z <- rmultinom(n = 1, size = 1, prob = q_z_k)
@@ -84,13 +91,13 @@ for(s in 1:S) { ## (イタレーション)
     } ## (/各語彙)
   } ## (/各文書)
   
-  # カウントを更新
+  # 割り当てられたトピックに関する単語数を更新
   for(k in 1:K) {
     n_dk[, k] <- apply(z_di == k, 1, sum)
     n_kv[k, ] <- apply(z_di == k, 2, sum)
   }
   
-  # 事後分布のパラメータを更新:式(3.191)
+  # トピック分布のパラメータを更新:式(3.191)
   alpha_numer <- apply(digamma(t(n_dk) + alpha_k) - digamma(alpha_k), 1, sum)
   alpha_denom <- sum(digamma(apply(t(n_dk) + alpha_k, 2, sum)) - digamma(sum(alpha_k)))
   alpha_k <- alpha_k * alpha_numer / alpha_denom
@@ -105,7 +112,7 @@ for(s in 1:S) { ## (イタレーション)
   trace_beta[, s + 1]  <- beta_v
   
   # 動作確認
-  print(paste0(s, "th Sample...", round(Sys.time() - star_time, 2)))
+  print(paste0(s, "th Sample...", round(Sys.time() - star_time, 3)))
 }
 
 # 処理の検証
@@ -169,16 +176,16 @@ trace_alpha_df_wide <- cbind(
 trace_alpha_df_long <- pivot_longer(
   trace_alpha_df_wide, 
   cols = -topic, # 変換せずにそのまま残す現列名
-  names_to = "Iteration", # 現列名を格納する新しい列の名前
+  names_to = "sample", # 現列名を格納する新しい列の名前
   names_prefix = "V", # 現列名から取り除く文字列
-  names_ptypes = list(Iteration = numeric()), # 現列名を要素とする際の型
+  names_ptypes = list(sample = numeric()), # 現列名を要素とする際の型
   values_to = "value" # 現要素を格納する新しい列の名前
 )
 
 # 作図
 graph_alpha <- ggplot(trace_alpha_df_long, aes(topic, value, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  transition_manual(Iteration) + 
+  transition_manual(sample) + 
   labs(title = "Gibbs sampler for LDA", 
        subtitle = "s={current_frame}") # ラベル
 
@@ -197,9 +204,9 @@ trace_beta_df_wide <- cbind(
 trace_beta_df_long <- pivot_longer(
   trace_beta_df_wide, 
   cols = -word, # 変換せずにそのまま残す現列名
-  names_to = "Iteration", # 現列名を格納する新しい列の名前
+  names_to = "sample", # 現列名を格納する新しい列の名前
   names_prefix = "V", # 現列名から取り除く文字列
-  names_ptypes = list(Iteration = numeric()), # 現列名を要素とする際の型
+  names_ptypes = list(sample = numeric()), # 現列名を要素とする際の型
   values_to = "value" # 現要素を格納する新しい列の名前
 )
 
@@ -208,7 +215,7 @@ graph_beta <- ggplot(trace_beta_df_long, aes(word, value, fill = word, color = w
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
-  transition_manual(Iteration) + 
+  transition_manual(sample) + 
   labs(title = "Gibbs sampler for LDA", 
        subtitle = "s={current_frame}") # ラベル
 
@@ -218,18 +225,18 @@ animate(graph_beta, nframes = S + 1, fps = 10)
 
 ### 折れ線グラフ
 ## トピック分布のパラメータ
-ggplot(trace_alpha_df_long, aes(x = Iteration, y = value, color = topic)) + 
+ggplot(trace_alpha_df_long, aes(x = sample, y = value, color = topic)) + 
   geom_line() + # 折れ線グラフ
   labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(alpha), 
-       x = "Iteration") # ラベル
+       x = "sample") # ラベル
 
 ## 単語分布のパラメータ
-ggplot(trace_beta_df_long, aes(x = Iteration, y = value, color = word)) + 
+ggplot(trace_beta_df_long, aes(x = sample, y = value, color = word)) + 
   geom_line(alpha = 0.5) + # 折れ線グラフ
   theme(legend.position = "none") + # 凡例
   labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(beta), 
-       x = "Iteration") # ラベル
+       x = "sample") # ラベル
 
 

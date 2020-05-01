@@ -72,10 +72,6 @@ for(s in 1:S) { ## (イタレーション)
     term_kv <- log(phi_kv) + log(theta_dk[d, ])
     q_z_dv_k[d, , ] <- exp(term_kv - apply(term_kv, 1, max)) / apply(exp(term_kv - apply(term_kv, 1, max)), 1, sum) # (アンダーフロー対策)
     
-    # サンプリング確率を計算：式(3.29)
-    q_z <- phi_kv * theta_dk[d, ] / apply(phi_kv * theta_dk[d, ], 1, sum)
-    q_z[is.na(q_z)] <- 1 / K # (アンダーフロー対策(仮))
-    
     for(v in 1:V) { ## (各語彙)
       if(n_dv[d, v] > 0) {
 
