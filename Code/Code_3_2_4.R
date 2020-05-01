@@ -46,6 +46,9 @@ trace_beta[, 1] <- beta_v
 
 for(s in 1:S) { ## (イタレーション)
   
+  # 動作確認用
+  star_time <- Sys.time()
+  
   for(d in 1:M) { ## (各文書)
     
     for(v in 1:V) { ## (各語彙)
@@ -66,13 +69,14 @@ for(s in 1:S) { ## (イタレーション)
           n_kv.di <- n_kv - count_kv
           
           # サンプリング確率を計算:式(3.38)
-          term1 <- (n_kv.di[, v] + beta_v[v]) / apply(t(n_kv.di) + beta_v, 2, sum)
-          term2 <- (n_dk.di[d, ] + alpha_k) / sum(n_dk.di[d, ] + alpha_k)
-          q_z <- term1 * term2
-          q_z[is.na(q_z)] <- 1 / K # (アンダーフロー対策(仮))
+          term_beta_vk <- log(t(n_kv.di) + beta_v)
+          term_alpha_k <- log(n_dk.di[d, ] + alpha_k)
+          term_beta_k <- exp(term_beta_vk[v, ] - apply(term_beta_vk, 2, max)) / apply(exp(term_beta_vk - apply(term_beta_vk, 2, max)), 2, sum) # (アンダーフロー対策)
+          term_alpha_k <- exp(term_alpha_k - max(term_alpha_k)) / sum(exp(term_alpha_k - max(term_alpha_k))) # (アンダーフロー対策)
+          q_z_k <- term_beta_k * term_alpha_k
           
           # 潜在トピックを割り当て
-          res_z <- rmultinom(n = 1, size = 1, prob = q_z)
+          res_z <- rmultinom(n = 1, size = 1, prob = q_z_k)
           z_di[d, v, n] <- which(res_z == 1)
           
         } ## (/各単語)
@@ -96,9 +100,12 @@ for(s in 1:S) { ## (イタレーション)
   beta_denom <- sum(digamma(apply(t(n_kv) + beta_v, 2, sum)) - digamma(sum(beta_v)))
   beta_v <- beta_v * beta_numer / beta_denom
   
-  # 推移の確認用
+  # 更新値の推移の確認用に値を保存
   trace_alpha[, s + 1] <- alpha_k
   trace_beta[, s + 1]  <- beta_v
+  
+  # 動作確認
+  print(paste0(s, "th Sample...", round(Sys.time() - star_time, 2)))
 }
 
 # 処理の検証
@@ -152,71 +159,73 @@ library(gganimate)
 
 
 ## トピック分布
-# データフレームを作成
-trace_alpha_WideDF <- cbind(
-  as.data.frame(t(trace_alpha)), 
-  S = as.factor(0:S)  # 試行回数
+# 作図用のデータフレームを作成
+trace_alpha_df_wide <- cbind(
+  as.data.frame(trace_alpha), 
+  topic = as.factor(1:K)
 )
 
 # データフレームをlong型に変換
-trace_alpha_LongDF <- pivot_longer(
-  trace_alpha_WideDF, 
-  cols = -S, 
-  names_to = "topic", 
-  names_prefix = "V", 
-  values_to = "value"
+trace_alpha_df_long <- pivot_longer(
+  trace_alpha_df_wide, 
+  cols = -topic, # 変換せずにそのまま残す現列名
+  names_to = "Iteration", # 現列名を格納する新しい列の名前
+  names_prefix = "V", # 現列名から取り除く文字列
+  names_ptypes = list(Iteration = numeric()), # 現列名を要素とする際の型
+  values_to = "value" # 現要素を格納する新しい列の名前
 )
 
 # 作図
-graph_alpha <- ggplot(trace_alpha_LongDF, aes(topic, value, fill = topic)) + 
+graph_alpha <- ggplot(trace_alpha_df_long, aes(topic, value, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  transition_manual(S) + 
+  transition_manual(Iteration) + 
   labs(title = "Gibbs sampler for LDA", 
-       subtitle = "S={current_frame}") # ラベル
+       subtitle = "s={current_frame}") # ラベル
 
-# 描画
+# gif画像を作成
 animate(graph_alpha, nframes = S + 1, fps = 10)
 
 
 ## 単語分布
-# データフレームを作成
-trace_beta_WideDF <- cbind(
-  as.data.frame(t(trace_beta)), 
-  S = as.factor(0:S)  # 試行回数
+# 作図用のデータフレームを作成
+trace_beta_df_wide <- cbind(
+  as.data.frame(trace_beta), 
+  word = as.factor(1:V)
 )
 
 # データフレームをlong型に変換
-trace_beta_LongDF <- pivot_longer(
-  trace_beta_WideDF, 
-  cols = -S, 
-  names_to = "word", 
-  names_prefix = "V", 
-  values_to = "value"
+trace_beta_df_long <- pivot_longer(
+  trace_beta_df_wide, 
+  cols = -word, # 変換せずにそのまま残す現列名
+  names_to = "Iteration", # 現列名を格納する新しい列の名前
+  names_prefix = "V", # 現列名から取り除く文字列
+  names_ptypes = list(Iteration = numeric()), # 現列名を要素とする際の型
+  values_to = "value" # 現要素を格納する新しい列の名前
 )
 
 # 作図
-graph_beta <- ggplot(trace_beta_LongDF, aes(word, value, fill = word, color = word)) + 
+graph_beta <- ggplot(trace_beta_df_long, aes(word, value, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
   theme(legend.position = "none") +                  # 凡例
-  transition_manual(S) + 
+  transition_manual(Iteration) + 
   labs(title = "Gibbs sampler for LDA", 
-       subtitle = "S={current_frame}") # ラベル
+       subtitle = "s={current_frame}") # ラベル
 
-# 描画
+# gif画像を作成
 animate(graph_beta, nframes = S + 1, fps = 10)
 
 
 ### 折れ線グラフ
 ## トピック分布のパラメータ
-ggplot(trace_alpha_LongDF, aes(x = as.numeric(S), y = value, color = topic)) + 
+ggplot(trace_alpha_df_long, aes(x = Iteration, y = value, color = topic)) + 
   geom_line() + # 折れ線グラフ
   labs(title = "Gibbs sampler for LDA", 
        subtitle = expression(alpha), 
        x = "Iteration") # ラベル
 
 ## 単語分布のパラメータ
-ggplot(trace_beta_LongDF, aes(x = as.numeric(S), y = value, color = word)) + 
+ggplot(trace_beta_df_long, aes(x = Iteration, y = value, color = word)) + 
   geom_line(alpha = 0.5) + # 折れ線グラフ
   theme(legend.position = "none") + # 凡例
   labs(title = "Gibbs sampler for LDA", 
