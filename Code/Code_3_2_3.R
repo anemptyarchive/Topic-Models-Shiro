@@ -21,9 +21,13 @@ S <- 1000
 # トピック数を指定
 K <- 5
 
-# 事前分布のパラメータを指定:(1以上の値)
-alpha_k <- rep(2, K)
-beta_v  <- rep(2, V)
+# 事前分布のパラメータを指定
+alpha_dk <- rep(2, K) %>% # トピック数分の値を指定(本来のパラメータ)
+  rep(each = M) %>% # 文書数ずつ複製
+  matrix(nrow = M, ncol = K) # マトリクスに変換
+beta_kv <- rep(2, V) %>% # 語彙数分の値を指定(本来のパラメータ)
+  rep(each = K) %>% # トピック数ずつ複製
+  matrix(nrow = K, ncol = V) # マトリクスに変換
 
 # トピック分布の初期値
 theta_dk <- seq(0.01, 1, by = 0.01) %>% 
@@ -40,7 +44,7 @@ phi_kv <- seq(0.01, 1, by = 0.01) %>%
 phi_kv <- phi_kv / apply(phi_kv, 1, sum)
 
 # 潜在トピック集合の初期値
-z_di <- array(0, dim = c(M, V, max(n_dv)))
+z_dvn <- array(0, dim = c(M, V, max(n_dv)))
 
 # 各文書において各トピックが割り当てられた単語数の初期値
 n_dk <- matrix(0, nrow = M, ncol = K)
@@ -52,8 +56,6 @@ n_kv <- matrix(0, nrow = K, ncol = V)
 # ギブスサンプリング ----------------------------------------------------------------------
 
 # 受け皿を用意
-new_alpha_dk <- matrix(0, nrow = M, ncol = K)
-new_beta_kv <- matrix(0, nrow = K, ncol = V)
 q_z_dv_k <- array(0, dim = c(M, V, K))
 
 # 推移の確認用
@@ -71,7 +73,7 @@ for(s in 1:S) { ## (イタレーション)
   for(d in 1:M) { ## (各文書)
     
     for(v in 1:V) { ## (各語彙)
-      if(n_dv[d, v] > 0) {
+      if(n_dv[d, v] > 0) { ## (出現回数が0のときは行わない)
         for(n in 1:n_dv[d, v]) { ## (各単語)
           
           # サンプリング確率を計算：式(3.29)
@@ -80,7 +82,7 @@ for(s in 1:S) { ## (イタレーション)
           
           # 潜在トピックを割り当て
           res_z <- rmultinom(n = 1, size = 1, prob = q_z_dv_k[d, v, ])
-          z_di[d, v, n] <- which(res_z == 1)
+          z_dvn[d, v, n] <- which(res_z == 1)
           
         } ## (/各単語)
       }
@@ -88,14 +90,14 @@ for(s in 1:S) { ## (イタレーション)
     
     # 割り当てられたトピックに関する単語数を更新
     for(k in 1:K) {
-      n_dk[d, k] <- sum(z_di[d, , ] == k)
+      n_dk[d, k] <- sum(z_dvn[d, , ] == k)
     }
     
     # 事後分布のパラメータを更新：式(3.36)の指数部分
-    new_alpha_dk[d, ] <- n_dk[d, ] + alpha_k
+    alpha_dk[d, ] <- n_dk[d, ] + alpha_dk[d, ]
     
-    # theta_{d,k}をサンプリング
-    theta_dk[d, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_alpha_dk[d, ]) %>% 
+    # theta_dをサンプリング
+    theta_dk[d, ] <- MCMCpack::rdirichlet(n = 1, alpha = alpha_dk[d, ]) %>% 
       as.vector()
     
   } ## (/各文書)
@@ -103,13 +105,13 @@ for(s in 1:S) { ## (イタレーション)
   for(k in 1:K) { ## (各トピック)
     
     # 割り当てられたトピックに関する単語数を更新
-    n_kv[k, ] <- apply(z_di == k, 2, sum)
+    n_kv[k, ] <- apply(z_dvn == k, 2, sum)
     
     # 事後分布のパラメータを更新：式(3.37)の指数部分
-    new_beta_kv[k, ] <- n_kv[k, ] + beta_v
+    beta_kv[k, ] <- n_kv[k, ] + beta_kv[k, ]
     
-    # phi_{k,v}をサンプリング
-    phi_kv[k, ] <- MCMCpack::rdirichlet(n = 1, alpha = new_beta_kv[k, ]) %>% 
+    # phi_kをサンプリング
+    phi_kv[k, ] <- MCMCpack::rdirichlet(n = 1, alpha = beta_kv[k, ]) %>% 
       as.vector()
     
   } ## (/各トピック)
@@ -135,7 +137,7 @@ apply(theta_dk, 1, sum)
 # 作図用のデータフレームを作成
 theta_df_wide <- cbind(
   as.data.frame(theta_dk), 
-  doc = as.factor(1:M) # 文書番号
+  doc = as.factor(1:M)
 )
 
 # データフレームをlong型に変換
@@ -160,7 +162,7 @@ ggplot(theta_df_long, aes(x = topic, y = prob, fill = topic)) +
 # 作図用のデータフレームを作成
 phi_df_wide <- cbind(
   as.data.frame(phi_kv), 
-  topic = as.factor(1:K) # トピック番号
+  topic = as.factor(1:K)
 )
 
 # データフレームをlong型に変換
