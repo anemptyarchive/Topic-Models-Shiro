@@ -1,5 +1,5 @@
 
-# Collapsed Gibbs sampler for LDA -----------------------------------------
+# Collapsed Gibbs Sampler for LDA -----------------------------------------
 
 # 利用パッケージ
 library(tidyverse)
@@ -15,8 +15,8 @@ n_dv <- matrix(sample(0:10, M * V, replace = TRUE), M, V)
 
 # パラメータの設定 -----------------------------------------------------------------
 
-# サンプリング回数(試行回数)
-S <- 1000
+# サンプリング回数(試行回数)を指定
+S <- 500
 
 # トピック数
 K <- 5
@@ -26,12 +26,12 @@ alpha_k <- rep(2, K)
 beta_v  <- rep(2, V)
 
 # 潜在トピック集合の初期値
-z_di <- array(0, dim = c(M, V, max(n_dv)))
+z_dvn <- array(0, dim = c(M, V, max(n_dv)))
 
 # 各文書において各トピックが割り当てられた単語数の初期値
 n_dk <- matrix(0, nrow = M, ncol = K)
 
-# 全文書において各トピックが割り当てられた単語数の初期値
+# 全文書において各トピックが割り当てられた語彙ごとの単語数の初期値
 n_kv <- matrix(0, nrow = K, ncol = V)
 
 
@@ -52,39 +52,35 @@ for(s in 1:S) { ## (イタレーション)
   for(d in 1:M) { ## (各文書)
     
     for(v in 1:V) { ## (各語彙)
-      if(n_dv[d, v] > 0) {
+      if(n_dv[d, v] > 0) { ## (出現回数が0のときは行わない)
         for(n in 1:n_dv[d, v]) { ## (各単語)
           
-          if(z_di[d, v, n] > 0) { ## (初回以外)
+          # 更新した値を移す
+          n_dk.di <- n_dk
+          n_kv.di <- n_kv
+          
+          if(s > 1) { ## (初回以外)
             
-            # トピック番号を取り出す
-            k <- z_di[d, v, n]
+            # d,i要素のトピック番号を取り出す
+            k <- z_dvn[d, v, n]
             
-            # d,i要素を除いたカウント
-            n_dk.di <- n_dk
+            # d,i要素に関する値を除く
             n_dk.di[d, k] <- n_dk.di[d, k] - 1
-            n_kv.di <- n_kv
             n_kv.di[k, v] <- n_kv.di[k, v] - 1
-            
-          } else if(z_di[d, v, n] == 0) { ## (初回)
-            
-            # 初回は全て0
-            n_dk.di <- n_dk
-            n_kv.di <- n_kv
             
           }
           
-          # サンプリング確率を計算:式(3.38)
-          tmp_beta_kv <- log(t(t(n_kv.di) + beta_v))
-          tmp_alpha_k <- log(n_dk.di[d, ] + alpha_k)
-          term_beta_k  <- exp(tmp_beta_kv[, v] - apply(tmp_beta_kv, 1, max)) / apply(exp(tmp_beta_kv - apply(tmp_beta_kv, 1, max)), 1, sum) # (アンダーフロー対策)
-          term_alpha_k <- exp(tmp_alpha_k - max(tmp_alpha_k)) / sum(exp(tmp_alpha_k - max(tmp_alpha_k))) # (アンダーフロー対策)
-          tmp_q_z_k <- term_beta_k * term_alpha_k
+          # 潜在トピックのサンプリング確率を計算:式(3.38)
+          tmp_kv <- log(t(t(n_kv.di) + beta_v))
+          term_beta <- exp(tmp_kv[, v] - apply(tmp_kv, 1, max)) / apply(exp(tmp_kv - apply(tmp_kv, 1, max)), 1, sum) # (アンダーフロー対策)
+          tmp_k <- log(n_dk.di[d, ] + alpha_k)
+          term_alpha <- exp(tmp_k - max(tmp_k)) / sum(exp(tmp_k - max(tmp_k))) # (アンダーフロー対策)
+          tmp_q_z_k <- term_beta * term_alpha
           q_z_k <- tmp_q_z_k / sum(tmp_q_z_k) # 正規化
           
-          # 潜在トピックを割り当て
+          # 潜在トピックを割り当てる
           res_z <- rmultinom(n = 1, size = 1, prob = q_z_k)
-          z_di[d, v, n] <- which(res_z == 1)
+          z_dvn[d, v, n] <- which(res_z == 1)
           
         } ## (/各単語)
       }
@@ -93,8 +89,8 @@ for(s in 1:S) { ## (イタレーション)
   
   # 割り当てられたトピックに関する単語数を更新
   for(k in 1:K) {
-    n_dk[, k] <- apply(z_di == k, 1, sum)
-    n_kv[k, ] <- apply(z_di == k, 2, sum)
+    n_dk[, k] <- apply(z_dvn == k, 1, sum)
+    n_kv[k, ] <- apply(z_dvn == k, 2, sum)
   }
   
   # トピック分布のパラメータを更新:式(3.191)
@@ -136,7 +132,7 @@ theta_df <- tibble(
 # 作図
 ggplot(theta_df, aes(x = topic, y = prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  labs(title = "Gibbs sampler for LDA", 
+  labs(title = "Collapsed Gibbs Sampler for LDA", 
        subtitle = expression(theta)) # ラベル
 
 
@@ -155,17 +151,14 @@ ggplot(phi_df, aes(x = word, y = prob, fill = word, color = word)) +
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
   scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
-  labs(title = "Gibbs sampler for LDA", 
+  labs(title = "Collapsed Gibbs Sampler for LDA", 
        subtitle = expression(phi)) # ラベル
 
 
-# 推移の確認 ---------------------------------------------------------------------
+# 更新値の推移の確認 ---------------------------------------------------------------------
 
-# 利用パッケージ
-library(gganimate)
-
-
-## トピック分布
+### 折れ線グラフ
+## トピック分布のパラメータ
 # 作図用のデータフレームを作成
 trace_alpha_df_wide <- cbind(
   as.data.frame(trace_alpha), 
@@ -183,17 +176,12 @@ trace_alpha_df_long <- pivot_longer(
 )
 
 # 作図
-graph_alpha <- ggplot(trace_alpha_df_long, aes(topic, value, fill = topic)) + 
-  geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  transition_manual(sample) + 
-  labs(title = "Gibbs sampler for LDA", 
-       subtitle = "s={current_frame}") # ラベル
-
-# gif画像を作成
-animate(graph_alpha, nframes = S + 1, fps = 10)
+ggplot(trace_alpha_df_long, aes(x = sample, y = value, color = topic)) + 
+  geom_line() + # 折れ線グラフ
+  labs(title = "Collapsed Gibbs Sampler for LDA") # ラベル
 
 
-## 単語分布
+## 単語分布のパラメータ
 # 作図用のデータフレームを作成
 trace_beta_df_wide <- cbind(
   as.data.frame(trace_beta), 
@@ -211,32 +199,72 @@ trace_beta_df_long <- pivot_longer(
 )
 
 # 作図
-graph_beta <- ggplot(trace_beta_df_long, aes(word, value, fill = word, color = word)) + 
+ggplot(trace_beta_df_long, aes(x = sample, y = value, color = word)) + 
+  geom_line(alpha = 0.5) + # 折れ線グラフ
+  theme(legend.position = "none") + # 凡例
+  labs(title = "Collapsed Gibbs Sampler for LDA", 
+       subtitle = expression(beta)) # ラベル
+
+
+# 利用パッケージ
+library(gganimate)
+
+
+## トピック分布(期待値)
+# 作図用のデータフレームを作成
+trace_theta_df_wide <- cbind(
+  as.data.frame(t(trace_alpha) / apply(trace_alpha, 2, sum)), 
+  sampling = 0:S
+)
+
+# データフレームをlong型に変換
+trace_theta_df_long <- pivot_longer(
+  trace_theta_df_wide, 
+  cols = -sampling, # 変換せずにそのまま残す現列名
+  names_to = "topic", # 現列名を格納する新しい列の名前
+  names_prefix = "V", # 現列名から取り除く文字列
+  names_ptypes = list(sampling = numeric()), # 現列名を要素とする際の型
+  values_to = "prob" # 現要素を格納する新しい列の名前
+)
+
+# 作図
+graph_theta <- ggplot(trace_theta_df_long, aes(topic, prob, fill = topic)) + 
   geom_bar(stat = "identity", position = "dodge") +  # 棒グラフ
-  scale_x_discrete(breaks = seq(1, V, by = 10)) +    # x軸目盛
-  theme(legend.position = "none") +                  # 凡例
-  transition_manual(sample) + 
+  transition_manual(sampling) + # フレーム
   labs(title = "Gibbs sampler for LDA", 
        subtitle = "s={current_frame}") # ラベル
 
 # gif画像を作成
-animate(graph_beta, nframes = S + 1, fps = 10)
+animate(graph_theta, nframes = S + 1, fps = 10)
 
 
-### 折れ線グラフ
-## トピック分布のパラメータ
-ggplot(trace_alpha_df_long, aes(x = sample, y = value, color = topic)) + 
-  geom_line() + # 折れ線グラフ
-  labs(title = "Gibbs sampler for LDA", 
-       subtitle = expression(alpha), 
-       x = "sample") # ラベル
+## 単語分布(期待値)
+# 作図用のデータフレームを作成
+trace_phi_df_wide <- cbind(
+  as.data.frame(t(trace_beta) / apply(trace_beta, 2, sum)), 
+  sampling = 0:S
+)
 
-## 単語分布のパラメータ
-ggplot(trace_beta_df_long, aes(x = sample, y = value, color = word)) + 
-  geom_line(alpha = 0.5) + # 折れ線グラフ
+# データフレームをlong型に変換
+trace_phi_df_long <- pivot_longer(
+  trace_phi_df_wide, 
+  cols = -sampling, # 変換せずにそのまま残す現列名
+  names_to = "word", # 現列名を格納する新しい列の名前
+  names_prefix = "V", # 現列名から取り除く文字列
+  names_ptypes = list(sampling = numeric()), # 現列名を要素とする際の型
+  values_to = "prob" # 現要素を格納する新しい列の名前
+)
+
+# 作図
+graph_phi <- ggplot(trace_phi_df_long, aes(word, prob, fill = word, color = word)) + 
+  geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
+  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
+  transition_manual(sampling) + # フレーム
   labs(title = "Gibbs sampler for LDA", 
-       subtitle = expression(beta), 
-       x = "sample") # ラベル
+       subtitle = "s={current_frame}") # ラベル
+
+# gif画像を作成
+animate(graph_phi, nframes = S + 1, fps = 10)
 
 
