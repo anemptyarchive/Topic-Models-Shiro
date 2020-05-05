@@ -149,7 +149,7 @@ phi_df <- tibble(
 # 作図
 ggplot(phi_df, aes(x = word, y = prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
+  scale_x_discrete(breaks = seq(0, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
   labs(title = "Collapsed Gibbs Sampler for LDA", 
        subtitle = expression(phi)) # ラベル
@@ -258,7 +258,7 @@ trace_phi_df_long <- pivot_longer(
 # 作図
 graph_phi <- ggplot(trace_phi_df_long, aes(word, prob, fill = word, color = word)) + 
   geom_bar(stat = "identity", position = "dodge") + # 棒グラフ
-  scale_x_discrete(breaks = seq(1, V, by = 10)) + # x軸目盛
+  scale_x_discrete(breaks = seq(0, V, by = 10)) + # x軸目盛
   theme(legend.position = "none") + # 凡例
   transition_manual(sampling) + # フレーム
   labs(title = "Gibbs sampler for LDA", 
