@@ -15,26 +15,28 @@ n_dv <- matrix(sample(0:10, M * V, replace = TRUE), M, V)
 
 # パラメータの設定 ----------------------------------------------------------------
 
-# イタレーション数
+# イタレーション数を指定
 Iter <- 50
 
-# トピック数
+# トピック数を指定
 K <- 5
 
 # 事前分布のパラメータ
-alpha_k <- rep(2, K)
-beta_v  <- rep(2, V)
+init_alpha_k <- sample(1:5, K, replace = TRUE)#rep(2, K)
+init_beta_v  <- sample(1:5, V, replace = TRUE)#rep(2, V)
+alpha_k <- sample(1:5, K, replace = TRUE)#rep(2, K)
+beta_v  <- sample(1:5, V, replace = TRUE)#rep(2, V)
 
 # 潜在トピック集合の分布
 z_dv_k <- array(0, dim = c(M, V, K))
-for(d in 1:M) { ## (各文書)
-  for(v in 1:V) { ## (各語彙)
-#    if(n_dv[d, v] > 0) {
+for(d in 1:M) {
+  for(v in 1:V) {
+    if(n_dv[d, v] > 0) {
       # ランダムに値を生成
       tmp_q_z <- sample(seq(0, 1, by = 0.01), size = K, replace = TRUE)
-      # 値を正規化
+      # 正規化
       z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z)
-#    }
+    }
   }
 }
 
@@ -70,6 +72,7 @@ for(I in 1:Iter) {
   start_time <- Sys.time()
   
   # 各種統計量を初期化
+  new_z_dv_k <- array(0, dim = c(M, V, K))
   new_E_n_dk <- new_V_n_dk <- matrix(0, M, K)
   new_E_n_kv <- new_V_n_kv <- matrix(0, K, V)
   
@@ -78,28 +81,30 @@ for(I in 1:Iter) {
     for(v in 1:V) { ## (各語彙)
       if(n_dv[d, v] > 0) {
         
-        # 各種統計量から(前回の)d,i要素を除く
-        E_n_dk[d, ] <- E_n_dk[d, ] - z_dv_k[d, v, ]
-        V_n_dk[d, ] <- V_n_dk[d, ] - z_dv_k[d, v, ] * (1 - z_dv_k[d, v, ])
-        E_n_kv[, v] <- E_n_kv[, v] - z_dv_k[d, v, ]
-        V_n_kv[, v] <- V_n_kv[, v] - z_dv_k[d, v, ] * (1 - z_dv_k[d, v, ])
+        # 各種統計量を移す
+        E_n_dk.di <- E_n_dk
+        V_n_dk.di <- V_n_dk
+        E_n_kv.di <- E_n_kv
+        V_n_kv.di <- V_n_kv
+        
+        # (前回の)d,i要素を除く
+        E_n_dk.di[d, ] <- E_n_dk.di[d, ] - z_dv_k[d, v, ]
+        V_n_dk.di[d, ] <- V_n_dk.di[d, ] - z_dv_k[d, v, ] * (1 - z_dv_k[d, v, ])
+        E_n_kv.di[, v] <- E_n_kv.di[, v] - z_dv_k[d, v, ]
+        V_n_kv.di[, v] <- V_n_kv.di[, v] - z_dv_k[d, v, ] * (1 - z_dv_k[d, v, ])
         
         # 潜在トピック集合の分布を計算:式(3.130)
-        term1  <- (E_n_kv[, v] + beta_v[v]) / apply(t(E_n_kv) + beta_v, 2, sum) * (E_n_dk[d, ] + alpha_k)
-        term21 <- V_n_kv[, v] / (2 * (E_n_kv[, v] + beta_v[v])^2)
-        term22 <- V_n_dk[d, ] / (2 * (E_n_dk[d, ] + alpha_k)^2)
-        term3  <- apply(V_n_kv, 1, sum) / (2 * apply(t(E_n_kv) + beta_v, 2, sum)^2)
-        tmp_q_z <- term1 * exp(- term21 - term22) * exp(term3)
+        term1  <- (E_n_kv.di[, v] + beta_v[v]) / apply(t(E_n_kv.di) + beta_v, 2, sum) * (E_n_dk.di[d, ] + alpha_k)
+        term21 <- V_n_kv.di[, v] / (2 * (E_n_kv.di[, v] + beta_v[v])^2) ## (CVB2 ver)
+        term22 <- V_n_dk.di[d, ] / (2 * (E_n_dk.di[d, ] + alpha_k)^2) ## (CVB2 ver)
+        term3  <- apply(V_n_kv.di, 1, sum) / (2 * apply(t(E_n_kv.di) + beta_v, 2, sum)^2) ## (CVB2 ver)
+        tmp_q_z <- term1 * exp(- term21 - term22) * exp(term3) ## (CVB2 ver)
         
         # 値を正規化
-        #z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z)
         new_z_dv_k[d, v, ] <- tmp_q_z / sum(tmp_q_z)
+        #new_z_dv_k[d, v, ] <- term1 / sum(term1) ## (CVB0 ver)
         
-        # 各種統計量から(今回の)d,i要素を加える
-        #E_n_dk[d, ] <- E_n_dk[d, ] + z_dv_k[d, v, ]
-        #V_n_dk[d, ] <- V_n_dk[d, ] + z_dv_k[d, v, ] * (1 - z_dv_k[d, v, ])
-        #E_n_kv[, v] <- E_n_kv[, v] + z_dv_k[d, v, ]
-        #V_n_kv[, v] <- V_n_kv[, v] + z_dv_k[d, v, ] * (1 - z_dv_k[d, v, ])
+        # 各種統計量に(今回の)d,i要素を加える
         new_E_n_dk[d, ] <- new_E_n_dk[d, ] + new_z_dv_k[d, v, ] * n_dv[d, v]
         new_V_n_dk[d, ] <- new_V_n_dk[d, ] + new_z_dv_k[d, v, ] * (1 - new_z_dv_k[d, v, ]) * n_dv[d, v]
         new_E_n_kv[, v] <- new_E_n_kv[, v] + new_z_dv_k[d, v, ] * n_dv[d, v]
@@ -222,7 +227,7 @@ ggplot(trace_beta_df, aes(x = iteration, y = value, color = word)) +
        subtitle = expression(beta)) # ラベル
 
 
-# 推移の確認用gif ---------------------------------------------------------------------
+# 推移の確認用:gif ---------------------------------------------------------------------
 
 # 利用パッケージ
 library(gganimate)
