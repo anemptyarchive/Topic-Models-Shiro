@@ -10,7 +10,7 @@ M <- 10
 # 語彙数
 V <- 20
 # 文書ごとの各語彙数
-n_dv <- matrix(sample(1:5, M * V, replace = TRUE), M, V)
+n_dv <- matrix(sample(0:10, M * V, replace = TRUE), M, V)
 
 
 # パラメータの設定 ----------------------------------------------------------------
@@ -165,7 +165,7 @@ theta_df_long <- pivot_longer(
   cols = -doc, # 変換せずにそのまま残す現列名
   names_to = "topic", # 現列名を格納する新しい列の名前
   names_prefix = "V", # 現列名から取り除く文字列
-  names_ptypes = list(topic = factor()),  # 現列名を要素とする際の型
+  names_ptypes = list(topic = factor()), # 現列名を要素とする際の型
   values_to = "prob" # 現要素を格納する新しい列の名前
 )
 
